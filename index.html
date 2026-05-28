@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>燕云十六声 · 装备管理系统</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+  <!-- Tesseract.js OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+  <!-- ========== 顶部导航 ========== -->
+  <nav class="navbar">
+    <div class="logo">
+      ⚔️ 燕云十六声
+      <span class="sub">装备管理系统</span>
+    </div>
+    <div class="nav-links">
+      <button data-page="equip" class="active">📦 装备管理</button>
+      <button data-page="upload">📸 截图上传</button>
+      <button data-page="build">🎯 自动配装</button>
+    </div>
+    <div class="nav-right">
+      <button class="btn btn-sm" onclick="importData()">📥 导入</button>
+      <button class="btn btn-sm" onclick="exportData()">📤 导出</button>
+    </div>
+  </nav>
+
+  <!-- ========== 主内容 ========== -->
+  <div class="main-content">
+
+    <!-- ===== 装备管理页 ===== -->
+    <div id="page-equip" class="page active">
+      <div class="page-header">
+        <div>
+          <h2>📦 装备管理</h2>
+          <p class="desc">管理你的所有装备，支持筛选、编辑和评分</p>
+        </div>
+        <button class="btn btn-primary btn-lg" onclick="openCreateEquip()">➕ 创建装备</button>
+      </div>
+
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <div class="search-box">
+          <input type="text" id="filter-search" placeholder="搜索装备名称 / 套装...">
+        </div>
+        <select id="filter-category">
+          <option value="">全部大类</option>
+          <option value="weapon">武器</option>
+          <option value="armor">防具</option>
+          <option value="accessory">饰品</option>
+        </select>
+        <select id="filter-slot">
+          <option value="">全部槽位</option>
+          <option value="主武器">主武器</option>
+          <option value="头盔">头盔</option>
+          <option value="上衣">上衣</option>
+          <option value="下装">下装</option>
+          <option value="鞋子">鞋子</option>
+          <option value="项链">项链</option>
+          <option value="戒指">戒指</option>
+        </select>
+        <select id="filter-quality">
+          <option value="">全部品质</option>
+          <option value="gold">金色</option>
+          <option value="purple">紫色</option>
+          <option value="blue">蓝色</option>
+          <option value="green">绿色</option>
+        </select>
+      </div>
+
+      <!-- 统计条 -->
+      <div class="stats-bar" id="equip-stats"></div>
+
+      <!-- 装备网格 -->
+      <div class="equip-grid" id="equip-grid"></div>
+    </div>
+
+    <!-- ===== 截图上传页 ===== -->
+    <div id="page-upload" class="page">
+      <div class="page-header">
+        <div>
+          <h2>📸 截图上传</h2>
+          <p class="desc">上传装备截图，OCR自动识别装备信息</p>
+        </div>
+        <button class="btn btn-primary" onclick="openCreateEquip()">➕ 手动创建</button>
+      </div>
+
+      <div class="card" style="max-width:600px;">
+        <div class="upload-zone" id="upload-zone">
+          <div class="icon">📷</div>
+          <p>点击或拖拽上传装备截图</p>
+          <p class="hint">支持 JPG / PNG / WEBP 格式，可点击上传、拖拽或 Ctrl+V 粘贴截图</p>
+          <input type="file" id="upload-file" accept="image/*" style="display:none;">
+        </div>
+        <div id="upload-preview"></div>
+        <div id="ocr-status" class="ocr-status pending" style="display:none;"></div>
+
+        <!-- OCR识别结果 -->
+        <div id="ocr-result" style="display:none;margin-top:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <h4 style="font-size:14px;font-weight:600;">🔍 识别结果</h4>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" onclick="copyOCRText()">📋 复制原文</button>
+              <button class="btn btn-sm btn-primary" onclick="fillEquipFromOCR()">✅ 填入创建表单</button>
+            </div>
+          </div>
+          <div id="ocr-raw-text" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;color:var(--text-secondary);max-height:120px;overflow-y:auto;white-space:pre-wrap;line-height:1.6;"></div>
+
+          <!-- 解析出的装备信息 -->
+          <div id="ocr-parsed" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <div class="card" style="max-width:600px;margin-top:16px;">
+        <div class="card-header"><h3>📋 OCR识别说明</h3></div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+          <p>系统使用 <strong style="color:var(--accent);">Tesseract.js</strong> 进行纯前端OCR识别，内置图片预处理管线（灰度化、对比度增强、锐化、自适应二值化）以提升准确率。</p>
+          <ul style="padding-left:20px;margin-top:8px;">
+            <li>首次识别需下载中文语言包（约25MB），后续会自动缓存</li>
+            <li>上传后自动预处理图片并识别，识别结果会自动解析装备名称、词条和数值</li>
+            <li>解析后可一键填入创建表单，也可手动修正</li>
+            <li>建议截图时装备面板尽量放大、背景简洁，以获得最佳识别效果</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 自动配装页 ===== -->
+    <div id="page-build" class="page">
+      <div class="page-header">
+        <div>
+          <h2>🎯 自动配装</h2>
+          <p class="desc">根据流派推荐或自定义权重，自动选出最优装备搭配</p>
+        </div>
+      </div>
+
+      <!-- 配置区 -->
+      <div class="build-config">
+        <div class="card">
+          <div class="card-header"><h3>⚔️ 选择流派（推荐模式）</h3></div>
+          <div class="style-cards" id="style-cards"></div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">选择流派后，系统将根据流派词条优先级自动推荐最佳装备</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>⚖️ 自定义权重</h3></div>
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">不选流派时，可手动设置各属性权重来排序装备</p>
+          <div id="weight-editor">
+            <div style="color:var(--text-muted);font-size:13px;padding:12px;">请先添加装备后才能设置权重</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 配装槽位 -->
+      <div class="card">
+        <div class="card-header">
+          <h3>🛡️ 配装方案</h3>
+          <button class="btn btn-sm" onclick="renderBuildSlots()">🔄 刷新</button>
+        </div>
+        <div class="build-slots" id="build-slots"></div>
+      </div>
+
+      <!-- 属性汇总 -->
+      <div class="build-result" id="build-summary"></div>
+    </div>
+
+  </div>
+
+  <!-- ========== 创建/编辑装备模态框 ========== -->
+  <div class="modal-overlay" id="modal-equip">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">创建装备</h3>
+        <button class="btn btn-icon" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="equip-form" onsubmit="event.preventDefault(); saveEquip();">
+          <div class="form-row">
+            <div class="form-group">
+              <label>装备名称 *</label>
+              <input type="text" class="form-control" id="equip-name" placeholder="例：承音·破军长剑" required>
+            </div>
+            <div class="form-group">
+              <label>装备槽位 *</label>
+              <select class="form-control" id="equip-slot" required>
+                <option value="">请选择</option>
+                <option value="主武器">主武器</option>
+                <option value="头盔">头盔</option>
+                <option value="上衣">上衣</option>
+                <option value="下装">下装</option>
+                <option value="鞋子">鞋子</option>
+                <option value="项链">项链</option>
+                <option value="戒指">戒指</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>品质</label>
+              <select class="form-control" id="equip-quality">
+                <option value="gold">金色</option>
+                <option value="purple" selected>紫色</option>
+                <option value="blue">蓝色</option>
+                <option value="green">绿色</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>装备等级</label>
+              <select class="form-control" id="equip-level">
+                <option value="91">91级</option>
+                <option value="96">96级</option>
+                <option value="100" selected>100级</option>
+                <option value="105">105级</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>套装</label>
+              <select class="form-control" id="equip-set">
+                <option value="">无</option>
+                <option value="断岳玄甲">断岳玄甲</option>
+                <option value="桂月">桂月</option>
+                <option value="燕归">燕归</option>
+                <option value="承音">承音</option>
+                <option value="连星">连星</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>武器类型</label>
+              <select class="form-control" id="equip-weapon-type">
+                <option value="">无</option>
+                <option value="长剑">长剑</option>
+                <option value="陌刀">陌刀</option>
+                <option value="枪">枪</option>
+                <option value="扇">扇</option>
+                <option value="伞">伞</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 词条编辑器 -->
+          <div class="form-group">
+            <label>装备词条</label>
+            <div class="affix-editor">
+              <div class="affix-editor-header">
+                <span>词条类型</span>
+                <span>数值</span>
+                <span></span>
+              </div>
+              <div id="affix-rows"></div>
+            </div>
+            <button type="button" class="btn btn-sm" style="margin-top:8px;" onclick="addAffixRow()">+ 添加词条</button>
+          </div>
+
+          <div class="form-group">
+            <label>备注</label>
+            <textarea class="form-control" id="equip-note" placeholder="可选：记录装备来源、用途等" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveEquip()">💾 保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 装备详情模态框 ========== -->
+  <div class="modal-overlay" id="modal-detail">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>装备详情</h3>
+        <button class="btn btn-icon" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="detail-content"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal()">关闭</button>
+        <button class="btn btn-primary" id="detail-edit-btn">✏️ 编辑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 脚本 ========== -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- 详情编辑按钮事件 -->
+  <script>
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('#detail-edit-btn')) {
+        const id = document.querySelector('.equip-card[data-id]')?.dataset?.id;
+        // 从详情中获取装备ID
+        const detailBtn = document.getElementById('detail-edit-btn');
+        if (detailBtn && detailBtn._equipId) {
+          closeModal();
+          setTimeout(() => openEditEquip(detailBtn._equipId), 200);
+        }
+      }
+    });
+
+    // 覆盖 openEquipDetail 以支持编辑按钮
+    const _origOpenDetail = openEquipDetail;
+    openEquipDetail = function(id) {
+      _origOpenDetail(id);
+      const editBtn = document.getElementById('detail-edit-btn');
+      if (editBtn) editBtn._equipId = id;
+    };
+  </script>
+
+</body>
+</html>

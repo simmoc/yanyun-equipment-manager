@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 26, 26, 46;
+  --background-end-rgb: 22, 33, 62;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  min-height: 100vh;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4ade80;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #22c55e;
+}
+
+/* 模态框动画 */
+.modal-enter {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 按钮悬停效果 */
+.btn-hover {
+  transition: all 0.2s ease;
+}
+
+.btn-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+}
+
+/* 装备卡片 */
+.equipment-card {
+  background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.3s ease;
+}
+
+.equipment-card:hover {
+  border-color: #4ade80;
+  box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
+}
+
+/* 毕业率进度条 */
+.progress-bar {
+  background: #1a1a2e;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.5s ease;
+}
+
+/* 标签按钮 */
+.tab-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.tab-button.active {
+  background: #4ade80;
+  color: #1a1a2e;
+}
+
+.tab-button:not(.active) {
+  background: #16213e;
+  color: #fff;
+}
+
+.tab-button:not(.active):hover {
+  background: #0f3460;
+}
+
+/* 选择框样式 */
+select {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+select:focus {
+  border-color: #4ade80;
+  outline: none;
+}
+
+/* 输入框样式 */
+input[type="text"],
+input[type="number"] {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  border-color: #4ade80;
+  outline: none;
+}
+
+/* 复选框样式 */
+input[type="checkbox"] {
+  accent-color: #4ade80;
+}
