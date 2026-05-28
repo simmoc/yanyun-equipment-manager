@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { getFingerprint } from '@/lib/fingerprint';
-import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot } from '@/types';
+import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
 import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
+import { initLocalDatabase, exportLocalData, importLocalData } from '@/lib/localStore';
+import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
 
 export default function Home() {
   const [fingerprint, setFingerprint] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLocal, setIsLocal] = useState(false);
+  const [localUserId, setLocalUserId] = useState<string | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -17,13 +21,18 @@ export default function Home() {
   const [graduationResults, setGraduationResults] = useState<GraduationResult[]>([]);
   const [equipmentFilter, setEquipmentFilter] = useState<'可用' | '全部' | '穿着'>('可用');
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | '全部'>('全部');
-  
+  const [configData, setConfigData] = useState<{
+    equip_data: Record<string, { id: number; name: string; longImage: string; shortImage: string; rarity: number; level: number }>;
+    suffix_data: Record<string, { name: string; short: string; icon: string }>;
+    affix_data: Record<string, { name: string; need_add: string; unit: string }>;
+  } | null>(null);
+
   const [showNewCharacterModal, setShowNewCharacterModal] = useState(false);
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
   const [showNewEquipmentModal, setShowNewEquipmentModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  
+
   const [newCharacterName, setNewCharacterName] = useState('');
   const [newPlanData, setNewPlanData] = useState({
     name: '默认方案',
@@ -42,15 +51,32 @@ export default function Home() {
     isWearing: false,
     suitType: ''
   });
+  const [affixMode, setAffixMode] = useState<'pve' | 'pvp'>('pve');
 
   useEffect(() => {
     const init = async () => {
       try {
         const fp = await getFingerprint();
         setFingerprint(fp);
-        await authenticate(fp);
+
+        const statusResponse = await fetch('/api/status');
+        const statusData = await statusResponse.json();
+        const dbAvailable = statusData.data?.databaseAvailable;
+
+        if (dbAvailable) {
+          initDataSource(fp, false);
+          await fetchCharacters();
+        } else {
+          await initLocalDatabase();
+          initDataSource(fp, true);
+          setIsLocal(true);
+          await initLocalAuth(fp);
+        }
       } catch (error) {
         console.error('初始化失败:', error);
+        await initLocalDatabase();
+        initDataSource('', true);
+        setIsLocal(true);
       } finally {
         setIsLoading(false);
       }
@@ -58,33 +84,96 @@ export default function Home() {
     init();
   }, []);
 
-  const authenticate = async (fp: string) => {
-    try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fingerprint: fp })
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchCharacters(fp);
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        if (data.success) {
+          setConfigData(data.data);
+        }
+      } catch (error) {
+        console.error('获取配置数据失败:', error);
       }
-    } catch (error) {
-      console.error('认证失败:', error);
+    };
+    fetchConfig();
+  }, []);
+
+  const getEquipNames = (slot?: string) => {
+    if (!configData?.equip_data) return [];
+    const all = Object.values(configData.equip_data);
+    if (!slot || slot === '全部') {
+      return all.map(e => e.name).filter((name, index, self) => self.indexOf(name) === index).sort();
+    }
+    const slotToSuffix: Record<string, string[]> = {
+      '剑': ['剑'],
+      '枪': ['枪'],
+      '环': ['环'],
+      '佩': ['佩'],
+      '冠胄': ['冠', '胄'],
+      '胸甲': ['胸甲'],
+      '胫甲': ['胫甲'],
+      '腕甲': ['腕甲']
+    };
+    const suffixes = slotToSuffix[slot] || [];
+    return all.filter(e => suffixes.some(s => e.name.endsWith(s))).map(e => e.name).filter((name, index, self) => self.indexOf(name) === index).sort();
+  };
+
+  const getSuitNames = () => {
+    if (!configData?.suffix_data) return [];
+    return Object.values(configData.suffix_data).map(s => s.name).filter((name, index, self) => self.indexOf(name) === index).sort();
+  };
+
+  const getAffixNames = () => {
+    if (!configData?.affix_data) return [];
+    const entries = Object.entries(configData.affix_data);
+    const pvePrefixes = ['24'];
+    const pvpPrefixes = ['23'];
+    if (affixMode === 'pve') {
+      return entries.filter(([id]) => pvePrefixes.some(p => id.startsWith(p))).map(([, a]) => a.name).filter((name, index, self) => self.indexOf(name) === index).sort();
+    } else {
+      return entries.filter(([id]) => pvpPrefixes.some(p => id.startsWith(p))).map(([, a]) => a.name).filter((name, index, self) => self.indexOf(name) === index).sort();
     }
   };
 
-  const fetchCharacters = async (fp: string) => {
+  const getSlotFromEquipName = (name: string) => {
+    if (!configData?.equip_data) return EQUIPMENT_SLOTS[0];
+    const equip = Object.values(configData.equip_data).find(e => e.name === name);
+    if (!equip) return EQUIPMENT_SLOTS[0];
+    const level = equip.level;
+    if (level <= 30) return '剑';
+    if (level <= 60) return '枪';
+    if (level <= 90) return '环';
+    return '佩';
+  };
+
+  const initLocalAuth = async (fp: string) => {
+    const { getUserByFingerprintLocal, createUserLocal, updateUserLoginLocal, getCharactersByUserIdLocal } = await import('@/lib/localStore');
     try {
-      const response = await fetch('/api/characters', {
-        headers: { 'x-fingerprint': fp }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCharacters(data.characters);
-        if (data.characters.length > 0 && !selectedCharacter) {
-          setSelectedCharacter(data.characters[0]);
-        }
+      let user = await getUserByFingerprintLocal(fp);
+      if (user) {
+        await updateUserLoginLocal(fp);
+      } else {
+        user = await createUserLocal(fp);
+      }
+      setLocalUserId(user.id);
+      const chars = await getCharactersByUserIdLocal(user.id);
+      setCharacters(chars);
+      if (chars.length > 0) {
+        setSelectedCharacter(chars[0]);
+      }
+    } catch (error) {
+      console.error('本地认证失败:', error);
+    }
+  };
+
+  const fetchCharacters = async () => {
+    try {
+      const ds = getDataSource();
+      const chars = await ds.getCharacters('', fingerprint);
+      setCharacters(chars);
+      if (chars.length > 0 && !selectedCharacter) {
+        setSelectedCharacter(chars[0]);
       }
     } catch (error) {
       console.error('获取角色失败:', error);
@@ -93,47 +182,38 @@ export default function Home() {
 
   useEffect(() => {
     if (selectedCharacter) {
-      fetchPlans(selectedCharacter.id);
-      fetchEquipments(selectedCharacter.id);
+      fetchPlansAndEquipments();
     }
   }, [selectedCharacter]);
 
-  const fetchPlans = async (characterId: string) => {
+  const fetchPlansAndEquipments = async () => {
+    if (!selectedCharacter) return;
     try {
-      const response = await fetch(`/api/plans?characterId=${characterId}`);
-      const data = await response.json();
-      if (data.success) {
-        setPlans(data.plans);
-        if (data.plans.length > 0 && !selectedPlan) {
-          setSelectedPlan(data.plans[0]);
-        }
+      const ds = getDataSource();
+      const [plansData, equipData] = await Promise.all([
+        ds.getPlans(selectedCharacter.id),
+        ds.getEquipments(selectedCharacter.id)
+      ]);
+      setPlans(plansData);
+      setEquipments(equipData);
+      if (plansData.length > 0 && !selectedPlan) {
+        setSelectedPlan(plansData[0]);
       }
     } catch (error) {
-      console.error('获取方案失败:', error);
-    }
-  };
-
-  const fetchEquipments = async (characterId: string) => {
-    try {
-      const response = await fetch(`/api/equipments?characterId=${characterId}`);
-      const data = await response.json();
-      if (data.success) {
-        setEquipments(data.equipments);
-      }
-    } catch (error) {
-      console.error('获取装备失败:', error);
+      console.error('获取数据失败:', error);
     }
   };
 
   useEffect(() => {
     if (selectedCharacter && plans.length > 0) {
-      fetchGraduation(selectedCharacter.id);
+      fetchGraduation();
     }
   }, [selectedCharacter, plans, equipments]);
 
-  const fetchGraduation = async (characterId: string) => {
+  const fetchGraduation = async () => {
+    if (!selectedCharacter) return;
     try {
-      const response = await fetch(`/api/graduation?characterId=${characterId}`);
+      const response = await fetch(`/api/graduation?characterId=${selectedCharacter.id}`);
       const data = await response.json();
       if (data.success) {
         setGraduationResults(data.results);
@@ -146,21 +226,12 @@ export default function Home() {
   const handleCreateCharacter = async () => {
     if (!newCharacterName.trim()) return;
     try {
-      const response = await fetch('/api/characters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-fingerprint': fingerprint
-        },
-        body: JSON.stringify({ name: newCharacterName })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setCharacters([...characters, data.character]);
-        setSelectedCharacter(data.character);
-        setNewCharacterName('');
-        setShowNewCharacterModal(false);
-      }
+      const ds = getDataSource();
+      const character = await ds.createCharacter(localUserId || '', fingerprint, newCharacterName.trim());
+      setCharacters([...characters, character]);
+      setSelectedCharacter(character);
+      setNewCharacterName('');
+      setShowNewCharacterModal(false);
     } catch (error) {
       console.error('创建角色失败:', error);
     }
@@ -169,20 +240,11 @@ export default function Home() {
   const handleDeleteCharacter = async () => {
     if (!selectedCharacter) return;
     try {
-      const response = await fetch('/api/characters', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-fingerprint': fingerprint
-        },
-        body: JSON.stringify({ characterId: selectedCharacter.id })
-      });
-      const data = await response.json();
-      if (data.success) {
-        const newCharacters = characters.filter(c => c.id !== selectedCharacter.id);
-        setCharacters(newCharacters);
-        setSelectedCharacter(newCharacters.length > 0 ? newCharacters[0] : null);
-      }
+      const ds = getDataSource();
+      await ds.deleteCharacter(selectedCharacter.id);
+      const newCharacters = characters.filter(c => c.id !== selectedCharacter.id);
+      setCharacters(newCharacters);
+      setSelectedCharacter(newCharacters.length > 0 ? newCharacters[0] : null);
     } catch (error) {
       console.error('删除角色失败:', error);
     }
@@ -191,20 +253,19 @@ export default function Home() {
   const handleCreatePlan = async () => {
     if (!selectedCharacter) return;
     try {
-      const response = await fetch('/api/plans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterId: selectedCharacter.id,
-          ...newPlanData
-        })
+      const ds = getDataSource();
+      const plan = await ds.createPlan(selectedCharacter.id, {
+        name: newPlanData.name,
+        flow_type: newPlanData.flowType,
+        version: newPlanData.version,
+        flow_category: newPlanData.flowCategory,
+        bow_type: newPlanData.bowType,
+        suit_type: newPlanData.suitType,
+        loan_dingyin: newPlanData.loanDingyin
       });
-      const data = await response.json();
-      if (data.success) {
-        setPlans([...plans, data.plan]);
-        setSelectedPlan(data.plan);
-        setShowNewPlanModal(false);
-      }
+      setPlans([...plans, plan]);
+      setSelectedPlan(plan);
+      setShowNewPlanModal(false);
     } catch (error) {
       console.error('创建方案失败:', error);
     }
@@ -213,17 +274,11 @@ export default function Home() {
   const handleDeletePlan = async () => {
     if (!selectedPlan) return;
     try {
-      const response = await fetch('/api/plans', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: selectedPlan.id })
-      });
-      const data = await response.json();
-      if (data.success) {
-        const newPlans = plans.filter(p => p.id !== selectedPlan.id);
-        setPlans(newPlans);
-        setSelectedPlan(newPlans.length > 0 ? newPlans[0] : null);
-      }
+      const ds = getDataSource();
+      await ds.deletePlan(selectedPlan.id);
+      const newPlans = plans.filter(p => p.id !== selectedPlan.id);
+      setPlans(newPlans);
+      setSelectedPlan(newPlans.length > 0 ? newPlans[0] : null);
     } catch (error) {
       console.error('删除方案失败:', error);
     }
@@ -232,27 +287,25 @@ export default function Home() {
   const handleCreateEquipment = async () => {
     if (!selectedCharacter || !newEquipmentData.name.trim()) return;
     try {
-      const response = await fetch('/api/equipments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterId: selectedCharacter.id,
-          ...newEquipmentData
-        })
+      const ds = getDataSource();
+      const equipment = await ds.createEquipment(selectedCharacter.id, {
+        slot: newEquipmentData.slot,
+        name: newEquipmentData.name,
+        level: newEquipmentData.level,
+        attributes: newEquipmentData.attributes,
+        is_wearing: newEquipmentData.isWearing,
+        suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
       });
-      const data = await response.json();
-      if (data.success) {
-        setEquipments([...equipments, data.equipment]);
-        setShowNewEquipmentModal(false);
-        setNewEquipmentData({
-          slot: EQUIPMENT_SLOTS[0],
-          name: '',
-          level: 0,
-          attributes: [{ name: '', value: 0, is_main: true }],
-          isWearing: false,
-          suitType: ''
-        });
-      }
+      setEquipments([...equipments, equipment]);
+      setShowNewEquipmentModal(false);
+      setNewEquipmentData({
+        slot: EQUIPMENT_SLOTS[0],
+        name: '',
+        level: 0,
+        attributes: [{ name: '', value: 0, is_main: true }],
+        isWearing: false,
+        suitType: ''
+      });
     } catch (error) {
       console.error('创建装备失败:', error);
     }
@@ -260,15 +313,9 @@ export default function Home() {
 
   const handleDeleteEquipment = async (equipmentId: string) => {
     try {
-      const response = await fetch('/api/equipments', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ equipmentId })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setEquipments(equipments.filter(e => e.id !== equipmentId));
-      }
+      const ds = getDataSource();
+      await ds.deleteEquipment(equipmentId);
+      setEquipments(equipments.filter(e => e.id !== equipmentId));
     } catch (error) {
       console.error('删除装备失败:', error);
     }
@@ -276,20 +323,11 @@ export default function Home() {
 
   const handleToggleWearing = async (equipment: Equipment) => {
     try {
-      const response = await fetch('/api/equipments', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          equipmentId: equipment.id,
-          updates: { is_wearing: !equipment.is_wearing }
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setEquipments(equipments.map(e => 
-          e.id === equipment.id ? { ...e, is_wearing: !e.is_wearing } : e
-        ));
-      }
+      const ds = getDataSource();
+      await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
+      setEquipments(equipments.map(e =>
+        e.id === equipment.id ? { ...e, is_wearing: !e.is_wearing } : e
+      ));
     } catch (error) {
       console.error('更新装备失败:', error);
     }
@@ -297,12 +335,19 @@ export default function Home() {
 
   const handleExport = async () => {
     try {
-      const response = await fetch('/api/export', {
-        headers: { 'x-fingerprint': fingerprint }
-      });
-      const data = await response.json();
-      if (data.success) {
-        const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+      if (isLocal) {
+        const localData = exportLocalData();
+        const blob = new Blob([JSON.stringify(localData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `yanyun-local-export-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const ds = getDataSource();
+        const data = await ds.exportData();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -318,24 +363,25 @@ export default function Home() {
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      
-      const response = await fetch('/api/export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-fingerprint': fingerprint
-        },
-        body: JSON.stringify({ data })
-      });
-      
-      const result = await response.json();
-      if (result.success) {
-        alert(`导入成功！导入 ${result.imported.characters} 个角色，${result.imported.plans} 个方案，${result.imported.equipments} 件装备`);
-        fetchCharacters(fingerprint);
+
+      if (isLocal) {
+        importLocalData(data as Parameters<typeof importLocalData>[0]);
+        if (localUserId) {
+          const { getCharactersByUserIdLocal } = await import('@/lib/localStore');
+          const chars = await getCharactersByUserIdLocal(localUserId);
+          setCharacters(chars);
+          setSelectedCharacter(chars.length > 0 ? chars[0] : null);
+        }
+        alert('导入成功！');
+      } else {
+        const ds = getDataSource();
+        await ds.importData(data);
+        alert('导入成功！');
+        await fetchCharacters();
       }
     } catch (error) {
       console.error('导入失败:', error);
@@ -392,14 +438,14 @@ export default function Home() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-        
+
         <button
           onClick={() => setShowNewCharacterModal(true)}
           className="px-4 py-2 bg-green-500 text-gray-900 rounded-lg btn-hover font-medium"
         >
           + 新建角色
         </button>
-        
+
         {selectedCharacter && (
           <button
             onClick={handleDeleteCharacter}
@@ -408,7 +454,7 @@ export default function Home() {
             删除
           </button>
         )}
-        
+
         <button
           onClick={() => setShowExportModal(true)}
           className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
@@ -430,7 +476,7 @@ export default function Home() {
                   {filter}
                 </button>
               ))}
-              
+
               {EQUIPMENT_SLOTS.map(slot => (
                 <button
                   key={slot}
@@ -440,7 +486,7 @@ export default function Home() {
                   {slot}
                 </button>
               ))}
-              
+
               <button
                 onClick={() => setSlotFilter('全部')}
                 className={`tab-button ${slotFilter === '全部' ? 'active' : ''}`}
@@ -450,43 +496,87 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              {filteredEquipments.map(equipment => (
-                <div
-                  key={equipment.id}
-                  className={`equipment-card ${equipment.is_wearing ? 'border-green-400' : ''}`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-sm text-gray-400">{equipment.slot}</span>
-                    <button
-                      onClick={() => handleDeleteEquipment(equipment.id)}
-                      className="text-red-400 hover:text-red-300 text-sm"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <h3 className="font-medium mb-2">{equipment.name}</h3>
-                  <p className="text-sm text-gray-400 mb-2">等级: {equipment.level}</p>
-                  {equipment.suit_type && (
-                    <p className="text-sm text-green-400 mb-2">套装: {equipment.suit_type}</p>
-                  )}
-                  <div className="text-sm text-gray-300">
-                    {equipment.attributes?.map((attr, i) => (
-                      <p key={i}>{attr.name}: {attr.value}</p>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => handleToggleWearing(equipment)}
-                    className={`mt-2 w-full py-1 rounded ${
-                      equipment.is_wearing 
-                        ? 'bg-green-500 text-gray-900' 
-                        : 'bg-gray-700 text-gray-300'
-                    }`}
+              {filteredEquipments.map(equipment => {
+                const equipImage = configData?.equip_data ? Object.values(configData.equip_data).find(e => e.name === equipment.name)?.shortImage : null;
+                const suitInfo = configData?.suffix_data ? Object.values(configData.suffix_data).find(s => s.name === equipment.suit_type) : null;
+                const mainAttrs = equipment.attributes?.filter(a => a.is_main) || [];
+                const subAttrs = equipment.attributes?.filter(a => !a.is_main) || [];
+                return (
+                  <div
+                    key={equipment.id}
+                    className={`equipment-card ${equipment.is_wearing ? 'border-green-400' : ''}`}
                   >
-                    {equipment.is_wearing ? '穿着中' : '未穿着'}
-                  </button>
-                </div>
-              ))}
-              
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300">{equipment.slot}</span>
+                      <button
+                        onClick={() => handleDeleteEquipment(equipment.id)}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {equipImage && (
+                      <div className="relative w-full h-24 mb-2 flex items-center justify-center bg-gray-900/50 rounded overflow-hidden">
+                        <img src={equipImage} alt={equipment.name} className="max-h-full max-w-full object-contain" />
+                        {equipment.is_wearing && (
+                          <span className="absolute top-1 right-1 text-xs px-1.5 py-0.5 bg-green-500 text-gray-900 rounded">穿着中</span>
+                        )}
+                      </div>
+                    )}
+                    <h3 className="font-medium text-sm mb-1 truncate">{equipment.name}</h3>
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                      <span>等级: {equipment.level}</span>
+                      {suitInfo && (
+                        <div className="flex items-center gap-1 text-green-400">
+                          <img src={suitInfo.icon} alt={suitInfo.name} className="w-4 h-4 object-contain" />
+                          <span className="truncate max-w-[60px]">{suitInfo.name}</span>
+                        </div>
+                      )}
+                    </div>
+                    {equipment.suit_type && !suitInfo && (
+                      <p className="text-xs text-green-400 mb-2">套装: {equipment.suit_type}</p>
+                    )}
+                    <div className="space-y-1">
+                      {mainAttrs.length > 0 && (
+                        <div className="text-xs">
+                          {mainAttrs.map((attr, i) => (
+                            <div key={i} className="flex justify-between text-gray-300">
+                              <span className="truncate">{attr.name}</span>
+                              <span className="text-green-400 ml-1">{attr.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {subAttrs.length > 0 && (
+                        <div className="text-xs border-t border-gray-700 pt-1 mt-1">
+                          {subAttrs.slice(0, 3).map((attr, i) => (
+                            <div key={i} className="flex justify-between text-gray-400">
+                              <span className="truncate">{attr.name}</span>
+                              <span className="text-blue-400 ml-1">{attr.value}</span>
+                            </div>
+                          ))}
+                          {subAttrs.length > 3 && (
+                            <div className="text-gray-500 text-center">+{subAttrs.length - 3}更多</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {!equipImage && (
+                      <button
+                        onClick={() => handleToggleWearing(equipment)}
+                        className={`mt-2 w-full py-1 rounded text-xs ${
+                          equipment.is_wearing
+                            ? 'bg-green-500 text-gray-900'
+                            : 'bg-gray-700 text-gray-300'
+                        }`}
+                      >
+                        {equipment.is_wearing ? '穿着中' : '未穿着'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+
               <button
                 onClick={() => setShowNewEquipmentModal(true)}
                 className="equipment-card flex items-center justify-center text-green-400 hover:border-green-400"
@@ -498,7 +588,7 @@ export default function Home() {
 
           <div className="bg-gray-800/50 p-4 rounded-lg">
             <h2 className="text-xl font-bold mb-4 text-green-400">面板</h2>
-            
+
             <div className="mb-4">
               <select
                 value={selectedPlan?.id || ''}
@@ -521,80 +611,85 @@ export default function Home() {
                     <label className="text-sm text-gray-400 mb-1 block">流派</label>
                     <select
                       value={selectedPlan.flow_type}
-                      onChange={(e) => {
-                        fetch('/api/plans', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ planId: selectedPlan.id, updates: { flow_type: e.target.value } })
-                        });
+                      onChange={async (e) => {
+                        try {
+                          const ds = getDataSource();
+                          await ds.updatePlan(selectedPlan.id, { flow_type: e.target.value as FlowType });
+                        } catch (error) {
+                          console.error('更新流派失败:', error);
+                        }
                       }}
                       className="w-full"
                     >
                       {FLOW_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm text-gray-400 mb-1 block">版本</label>
                     <select
                       value={selectedPlan.version}
-                      onChange={(e) => {
-                        fetch('/api/plans', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ planId: selectedPlan.id, updates: { version: e.target.value } })
-                        });
+                      onChange={async (e) => {
+                        try {
+                          const ds = getDataSource();
+                          await ds.updatePlan(selectedPlan.id, { version: e.target.value as VersionType });
+                        } catch (error) {
+                          console.error('更新版本失败:', error);
+                        }
                       }}
                       className="w-full"
                     >
                       {VERSIONS.map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm text-gray-400 mb-1 block">弓诀</label>
                     <select
                       value={selectedPlan.bow_type}
-                      onChange={(e) => {
-                        fetch('/api/plans', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ planId: selectedPlan.id, updates: { bow_type: e.target.value } })
-                        });
+                      onChange={async (e) => {
+                        try {
+                          const ds = getDataSource();
+                          await ds.updatePlan(selectedPlan.id, { bow_type: e.target.value as BowType });
+                        } catch (error) {
+                          console.error('更新弓诀失败:', error);
+                        }
                       }}
                       className="w-full"
                     >
                       {BOW_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm text-gray-400 mb-1 block">套装</label>
                     <select
                       value={selectedPlan.suit_type}
-                      onChange={(e) => {
-                        fetch('/api/plans', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ planId: selectedPlan.id, updates: { suit_type: e.target.value } })
-                        });
+                      onChange={async (e) => {
+                        try {
+                          const ds = getDataSource();
+                          await ds.updatePlan(selectedPlan.id, { suit_type: e.target.value as SuitType });
+                        } catch (error) {
+                          console.error('更新套装失败:', error);
+                        }
                       }}
                       className="w-full"
                     >
                       {SUIT_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
-                  
+
                   <div className="col-span-2 flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={selectedPlan.loan_dingyin}
-                      onChange={(e) => {
-                        fetch('/api/plans', {
-                          method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ planId: selectedPlan.id, updates: { loan_dingyin: e.target.checked } })
-                        });
+                      onChange={async (e) => {
+                        try {
+                          const ds = getDataSource();
+                          await ds.updatePlan(selectedPlan.id, { loan_dingyin: e.target.checked });
+                        } catch (error) {
+                          console.error('更新贷款定音失败:', error);
+                        }
                       }}
                     />
                     <label className="text-sm">贷款定音</label>
@@ -604,7 +699,7 @@ export default function Home() {
                 {currentGraduation && (
                   <div className="mt-6">
                     <h3 className="text-lg font-medium mb-4">毕业率</h3>
-                    
+
                     <div className="mb-4">
                       <div className="flex justify-between mb-2">
                         <span>总体毕业率</span>
@@ -613,9 +708,9 @@ export default function Home() {
                         </span>
                       </div>
                       <div className="progress-bar h-4">
-                        <div 
+                        <div
                           className="progress-fill"
-                          style={{ 
+                          style={{
                             width: `${currentGraduation.overall_rate}%`,
                             background: getGraduationColor(currentGraduation.overall_rate)
                           }}
@@ -636,9 +731,9 @@ export default function Home() {
                             </span>
                           </div>
                           <div className="progress-bar h-2">
-                            <div 
+                            <div
                               className="progress-fill"
-                              style={{ 
+                              style={{
                                 width: `${rate}%`,
                                 background: getGraduationColor(rate)
                               }}
@@ -699,7 +794,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modals */}
       {showNewCharacterModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-md w-full mx-4">
@@ -746,28 +840,48 @@ export default function Home() {
           <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-lg w-full mx-4">
             <h2 className="text-xl font-bold mb-4">录入装备</h2>
             <div className="space-y-4">
-              <select value={newEquipmentData.slot} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, slot: e.target.value as any })} className="w-full">
-                {EQUIPMENT_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">部位</label>
+                  <select value={newEquipmentData.slot} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, slot: e.target.value as EquipmentSlot, name: '' })} className="w-full">
+                    {EQUIPMENT_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">等级</label>
+                  <input type="number" placeholder="等级" value={newEquipmentData.level} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, level: parseInt(e.target.value) || 0 })} className="w-full" />
+                </div>
+              </div>
+              <select value={newEquipmentData.name} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, name: e.target.value })} className="w-full">
+                <option value="">-- 选择装备 --</option>
+                {getEquipNames(newEquipmentData.slot).map(name => <option key={name} value={name}>{name}</option>)}
               </select>
-              <input type="text" placeholder="装备名称" value={newEquipmentData.name} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, name: e.target.value })} className="w-full" />
-              <input type="number" placeholder="装备等级" value={newEquipmentData.level} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, level: parseInt(e.target.value) || 0 })} className="w-full" />
-              <select value={newEquipmentData.suitType} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, suitType: e.target.value as any })} className="w-full">
+              <select value={newEquipmentData.suitType} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, suitType: e.target.value })} className="w-full">
                 <option value="">无套装</option>
-                {SUIT_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                {getSuitNames().map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              
+
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">装备属性</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm text-gray-400">装备属性</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => { setAffixMode('pve'); setNewEquipmentData({ ...newEquipmentData, attributes: [{ name: '', value: 0, is_main: true }] }); }} className={`text-xs px-2 py-1 rounded ${affixMode === 'pve' ? 'bg-green-500 text-gray-900' : 'bg-gray-700 text-gray-300'}`}>PVE定音</button>
+                    <button type="button" onClick={() => { setAffixMode('pvp'); setNewEquipmentData({ ...newEquipmentData, attributes: [{ name: '', value: 0, is_main: true }] }); }} className={`text-xs px-2 py-1 rounded ${affixMode === 'pvp' ? 'bg-red-500 text-gray-900' : 'bg-gray-700 text-gray-300'}`}>PVP定音</button>
+                  </div>
+                </div>
                 {newEquipmentData.attributes.map((attr, i) => (
                   <div key={i} className="flex gap-2 mb-2">
-                    <input type="text" placeholder="属性名" value={attr.name} onChange={(e) => { const attrs = [...newEquipmentData.attributes]; attrs[i].name = e.target.value; setNewEquipmentData({ ...newEquipmentData, attributes: attrs }); }} className="flex-1" />
+                    <select value={attr.name} onChange={(e) => { const attrs = [...newEquipmentData.attributes]; attrs[i].name = e.target.value; setNewEquipmentData({ ...newEquipmentData, attributes: attrs }); }} className="flex-1">
+                      <option value="">-- 选择属性 --</option>
+                      {getAffixNames().map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
                     <input type="number" placeholder="数值" value={attr.value} onChange={(e) => { const attrs = [...newEquipmentData.attributes]; attrs[i].value = parseInt(e.target.value) || 0; setNewEquipmentData({ ...newEquipmentData, attributes: attrs }); }} className="w-20" />
                     <button onClick={() => { const attrs = newEquipmentData.attributes.filter((_, j) => j !== i); setNewEquipmentData({ ...newEquipmentData, attributes: attrs.length ? attrs : [{ name: '', value: 0, is_main: true }] }); }} className="px-2 bg-red-500/20 text-red-400 rounded">×</button>
                   </div>
                 ))}
                 <button onClick={() => setNewEquipmentData({ ...newEquipmentData, attributes: [...newEquipmentData.attributes, { name: '', value: 0, is_main: false }] })} className="text-sm text-green-400">+ 添加属性</button>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={newEquipmentData.isWearing} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, isWearing: e.target.checked })} />
                 <label className="text-sm">当前穿着</label>

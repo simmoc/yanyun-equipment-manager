@@ -1,5 +1,21 @@
 import { sql } from '@vercel/postgres';
 
+const isDatabaseConfigured = !!process.env.DATABASE_URL;
+
+export function isDbConfigured(): boolean {
+  return isDatabaseConfigured;
+}
+
+export async function checkDatabaseConnection(): Promise<boolean> {
+  if (!isDatabaseConfigured) return false;
+  try {
+    await sql`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // 数据库初始化脚本
 // 在 Neon PostgreSQL 中创建必要的表
 
