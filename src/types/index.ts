@@ -12,7 +12,7 @@ export type VersionType = '5.2（易水）' | '5.3（凝神）';
 export type FlowCategory = '通用' | '鸣金' | '裂石' | '牵丝' | '破竹';
 
 // 装备部位
-export type EquipmentSlot = '剑' | '枪' | '环' | '佩' | '冠胄' | '胸甲' | '胫甲' | '腕甲';
+export type EquipmentSlot = '主武器' | '副武器' | '环' | '佩' | '冠胄' | '胸甲' | '胫甲' | '腕甲' | '射决' | '弓';
 
 // 弓诀类型
 export type BowType = '精准弓' | '会心弓' | '会意弓';
@@ -30,11 +30,37 @@ export interface User {
   last_login: Date;
 }
 
+// 游戏角色信息（来自网易大神）
+export interface GameRole {
+  uid: string;
+  appKey: string;
+  roleId: string;
+  server: string;
+  game: string;
+  nick: string;
+  level: string;
+  icon: string;
+  serverName: string;
+}
+
+// 登录凭证
+export interface AuthCredentials {
+  cookies: any;
+  loginToken: string;
+  roles: GameRole[];
+  timestamp: number;
+}
+
 // 角色
 export interface Character {
   id: string;
   user_id: string;
   name: string;
+  icon?: string;
+  level?: string;
+  server_name?: string;
+  role_id?: string;
+  server?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -73,6 +99,56 @@ export interface EquipmentAttribute {
   name: string;
   value: number;
   is_main: boolean;
+  rate?: number;
+  quality?: number;
+}
+
+// 角色属性面板数据
+export interface RolePanelData {
+  roleId: string;
+  isBloodDifficulty: number;
+  createTime: number;
+  xiuweiExplore: number;
+  hpMax: string;
+  breakLog: Array<{ numW: number; dt: string }>;
+  kungFuDayCountList: Array<{ maxScore: number; dt: string }>;
+  kungFuDayCountRecent30List: Array<{ maxScore: number; dt: string }>;
+  MIN_W_ATK: string;
+  MAX_W_ATK: string;
+  W_DEF: string;
+  ACR_PROB: string;
+  REAL_ACR_PROB: string;
+  CRI_PROB: string;
+  REAL_CRI_PROB: string;
+  BASH_PROB: string;
+  REAL_BASH_PROB: string;
+  DIRECT_CRI_PROB: string;
+  DIRECT_BASH_PROB: string;
+  MIN_PRO_ATK_A: string;
+  MAX_PRO_ATK_A: string;
+  MIN_PRO_ATK_B: string;
+  MAX_PRO_ATK_B: string;
+  MIN_PRO_ATK_C: string;
+  MAX_PRO_ATK_C: string;
+  MIN_PRO_ATK_E: string;
+  MAX_PRO_ATK_E: string;
+  MIN_ACTIVE_PRO_ATK: string;
+  MAX_ACTIVE_PRO_ATK: string;
+  [key: string]: any;
+}
+
+export interface RoleInfo {
+  xinfa_info: any[];
+}
+
+// 心法数据
+export interface XinfaData {
+  id: number;
+  name: string;
+  image1: string;
+  image2: string;
+  image3: string;
+  bg: string;
 }
 
 // 毕业率计算结果
@@ -103,7 +179,7 @@ export const VERSIONS: VersionType[] = ['5.2（易水）', '5.3（凝神）'];
 
 export const FLOW_CATEGORIES: FlowCategory[] = ['通用', '鸣金', '裂石', '牵丝', '破竹'];
 
-export const EQUIPMENT_SLOTS: EquipmentSlot[] = ['剑', '枪', '环', '佩', '冠胄', '胸甲', '胫甲', '腕甲'];
+export const EQUIPMENT_SLOTS: EquipmentSlot[] = ['主武器', '副武器', '环', '佩', '冠胄', '胸甲', '胫甲', '腕甲', '射决', '弓'];
 
 export const BOW_TYPES: BowType[] = ['精准弓', '会心弓', '会意弓'];
 

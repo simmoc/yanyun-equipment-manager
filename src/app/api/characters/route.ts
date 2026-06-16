@@ -30,6 +30,11 @@ export async function GET(request: NextRequest) {
       characters: characters.map(c => ({
         id: c.id,
         name: c.name,
+        icon: c.icon,
+        level: c.level,
+        server_name: c.server_name,
+        role_id: c.role_id,
+        server: c.server,
         created_at: c.created_at,
         updated_at: c.updated_at
       }))
@@ -47,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     const fingerprint = request.headers.get('x-fingerprint');
     const body = await request.json();
-    const { name } = body;
+    const { name, icon, level, server_name, role_id, server } = body;
     
     if (!fingerprint) {
       return NextResponse.json(
@@ -71,13 +76,24 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const character = await createCharacter(user.id, name.trim());
+    const character = await createCharacter(user.id, name.trim(), {
+      icon,
+      level,
+      server_name,
+      role_id,
+      server
+    });
     
     return NextResponse.json({
       success: true,
       character: {
         id: character.id,
         name: character.name,
+        icon: character.icon,
+        level: character.level,
+        server_name: character.server_name,
+        role_id: character.role_id,
+        server: character.server,
         created_at: character.created_at,
         updated_at: character.updated_at
       }

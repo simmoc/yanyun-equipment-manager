@@ -3,7 +3,13 @@ import * as localStore from '@/lib/localStore';
 
 interface DataSource {
   getCharacters(userId: string, fingerprint: string): Promise<Character[]>;
-  createCharacter(userId: string, fingerprint: string, name: string): Promise<Character>;
+  createCharacter(userId: string, fingerprint: string, name: string, options?: {
+    icon?: string;
+    level?: string;
+    server_name?: string;
+    role_id?: string;
+    server?: string;
+  }): Promise<Character>;
   deleteCharacter(characterId: string): Promise<void>;
 
   getPlans(characterId: string): Promise<Plan[]>;
@@ -25,8 +31,14 @@ class LocalDataSource implements DataSource {
     return localStore.getCharactersByUserIdLocal(userId);
   }
 
-  async createCharacter(userId: string, _fingerprint: string, name: string): Promise<Character> {
-    return localStore.createCharacterLocal(userId, name);
+  async createCharacter(userId: string, _fingerprint: string, name: string, options?: {
+    icon?: string;
+    level?: string;
+    server_name?: string;
+    role_id?: string;
+    server?: string;
+  }): Promise<Character> {
+    return localStore.createCharacterLocal(userId, name, options);
   }
 
   async deleteCharacter(characterId: string): Promise<void> {
@@ -107,14 +119,20 @@ class ApiDataSource implements DataSource {
     return data.characters;
   }
 
-  async createCharacter(userId: string, _fingerprint: string, name: string): Promise<Character> {
+  async createCharacter(userId: string, _fingerprint: string, name: string, options?: {
+    icon?: string;
+    level?: string;
+    server_name?: string;
+    role_id?: string;
+    server?: string;
+  }): Promise<Character> {
     const response = await fetch('/api/characters', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-fingerprint': this.fingerprint
       },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, ...options })
     });
     const data = await response.json();
     if (!data.success) throw new Error('Failed to create character');

@@ -21,6 +21,8 @@ export async function GET() {
     const suffixData = readJsonFile('suffix_data.json');
     const affixData = readJsonFile('affix_data.json');
     const schoolData = readJsonFile('school_data.json');
+    const xinfaData = readJsonFile('xinfa_data.json');
+    const slotData = readJsonFile('slot_data.json');
 
     return NextResponse.json({
       success: true,
@@ -28,7 +30,9 @@ export async function GET() {
         equip_data: equipData,
         suffix_data: suffixData,
         affix_data: affixData,
-        school_data: schoolData
+        school_data: schoolData,
+        xinfa_data: xinfaData,
+        slot_data: slotData
       }
     });
   } catch (error) {

@@ -1,48 +1,67 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFingerprint } from '@/lib/fingerprint';
-import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType } from '@/types';
+import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
 import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
-import { initLocalDatabase, exportLocalData, importLocalData } from '@/lib/localStore';
-import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
+import { exportLocalData, importLocalData } from '@/lib/localStore';
+import { getDataSource } from '@/lib/dataSource';
+import { useAppData, useConfigData } from '@/hooks';
+import {
+  NewEquipmentModal,
+  EditEquipmentModal,
+  ExportModal,
+  AboutModal,
+  EquipmentCard,
+  TuningAssistantReport,
+  QRCodeAuthModal
+} from '@/components';
 
 export default function Home() {
-  const [fingerprint, setFingerprint] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLocal, setIsLocal] = useState(false);
-  const [localUserId, setLocalUserId] = useState<string | null>(null);
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const {
+    fingerprint,
+    isLoading,
+    isLocal,
+    localUserId,
+    characters,
+    selectedCharacter,
+    setSelectedCharacter,
+    plans,
+    selectedPlan,
+    setSelectedPlan,
+    equipments,
+    authCredentials,
+    availableGameRoles,
+    rolePanelData,
+    isLoadingRolePanel,
+    fetchCharacters,
+    fetchPlansAndEquipments,
+    initLocalAuth,
+    saveAuthCredentials,
+    fetchRolePanel
+  } = useAppData();
+
+  const {
+    configData,
+    getEquipImageUrl,
+    getEquipNames,
+    getAffixNames: getAffixNamesBase,
+    getSlotFromEquipName,
+    getXinfaInfo
+  } = useConfigData();
+
   const [graduationResults, setGraduationResults] = useState<GraduationResult[]>([]);
   const [equipmentFilter, setEquipmentFilter] = useState<'可用' | '全部' | '穿着'>('可用');
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | '全部'>('全部');
-  const [configData, setConfigData] = useState<{
-    equip_data: Record<string, { id: number; name: string; longImage: string; shortImage: string; rarity: number; level: number }>;
-    suffix_data: Record<string, { name: string; short: string; icon: string }>;
-    affix_data: Record<string, { name: string; need_add: string; unit: string }>;
-  } | null>(null);
 
-  const [showNewCharacterModal, setShowNewCharacterModal] = useState(false);
-  const [showNewPlanModal, setShowNewPlanModal] = useState(false);
   const [showNewEquipmentModal, setShowNewEquipmentModal] = useState(false);
+  const [showEditEquipmentModal, setShowEditEquipmentModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
-
-  const [newCharacterName, setNewCharacterName] = useState('');
-  const [newPlanData, setNewPlanData] = useState({
-    name: '默认方案',
-    flowType: FLOW_TYPES[0],
-    version: VERSIONS[0],
-    flowCategory: FLOW_CATEGORIES[1],
-    bowType: BOW_TYPES[0],
-    suitType: SUIT_TYPES[0],
-    loanDingyin: false
-  });
+  const [showTuningAssistant, setShowTuningAssistant] = useState(false);
+  const [showQRCodeAuth, setShowQRCodeAuth] = useState(false);
+  const [tuningCapturedData, setTuningCapturedData] = useState<any>(null);
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [newEquipmentData, setNewEquipmentData] = useState({
     slot: EQUIPMENT_SLOTS[0],
     name: '',
@@ -51,164 +70,31 @@ export default function Home() {
     isWearing: false,
     suitType: ''
   });
+  const [editEquipmentData, setEditEquipmentData] = useState({
+    slot: EQUIPMENT_SLOTS[0] as EquipmentSlot,
+    name: '',
+    level: 0,
+    attributes: [] as { name: string; value: number; is_main: boolean }[],
+    isWearing: false,
+    suitType: ''
+  });
   const [affixMode, setAffixMode] = useState<'pve' | 'pvp'>('pve');
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const fp = await getFingerprint();
-        setFingerprint(fp);
-
-        const statusResponse = await fetch('/api/status');
-        const statusData = await statusResponse.json();
-        const dbAvailable = statusData.data?.databaseAvailable;
-
-        if (dbAvailable) {
-          initDataSource(fp, false);
-          await fetchCharacters();
-        } else {
-          await initLocalDatabase();
-          initDataSource(fp, true);
-          setIsLocal(true);
-          await initLocalAuth(fp);
-        }
-      } catch (error) {
-        console.error('初始化失败:', error);
-        await initLocalDatabase();
-        initDataSource('', true);
-        setIsLocal(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const response = await fetch('/api/config');
-        const data = await response.json();
-        if (data.success) {
-          setConfigData(data.data);
-        }
-      } catch (error) {
-        console.error('获取配置数据失败:', error);
-      }
-    };
-    fetchConfig();
-  }, []);
-
-  const getEquipNames = (slot?: string) => {
-    if (!configData?.equip_data) return [];
-    const all = Object.values(configData.equip_data);
-    if (!slot || slot === '全部') {
-      return all.map(e => e.name).filter((name, index, self) => self.indexOf(name) === index).sort();
-    }
-    const slotToSuffix: Record<string, string[]> = {
-      '剑': ['剑'],
-      '枪': ['枪'],
-      '环': ['环'],
-      '佩': ['佩'],
-      '冠胄': ['冠', '胄'],
-      '胸甲': ['胸甲'],
-      '胫甲': ['胫甲'],
-      '腕甲': ['腕甲']
-    };
-    const suffixes = slotToSuffix[slot] || [];
-    return all.filter(e => suffixes.some(s => e.name.endsWith(s))).map(e => e.name).filter((name, index, self) => self.indexOf(name) === index).sort();
-  };
-
-  const getSuitNames = () => {
-    if (!configData?.suffix_data) return [];
-    return Object.values(configData.suffix_data).map(s => s.name).filter((name, index, self) => self.indexOf(name) === index).sort();
-  };
-
-  const getAffixNames = () => {
-    if (!configData?.affix_data) return [];
-    const entries = Object.entries(configData.affix_data);
-    const pvePrefixes = ['24'];
-    const pvpPrefixes = ['23'];
-    if (affixMode === 'pve') {
-      return entries.filter(([id]) => pvePrefixes.some(p => id.startsWith(p))).map(([, a]) => a.name).filter((name, index, self) => self.indexOf(name) === index).sort();
-    } else {
-      return entries.filter(([id]) => pvpPrefixes.some(p => id.startsWith(p))).map(([, a]) => a.name).filter((name, index, self) => self.indexOf(name) === index).sort();
-    }
-  };
-
-  const getSlotFromEquipName = (name: string) => {
-    if (!configData?.equip_data) return EQUIPMENT_SLOTS[0];
-    const equip = Object.values(configData.equip_data).find(e => e.name === name);
-    if (!equip) return EQUIPMENT_SLOTS[0];
-    const level = equip.level;
-    if (level <= 30) return '剑';
-    if (level <= 60) return '枪';
-    if (level <= 90) return '环';
-    return '佩';
-  };
-
-  const initLocalAuth = async (fp: string) => {
-    const { getUserByFingerprintLocal, createUserLocal, updateUserLoginLocal, getCharactersByUserIdLocal } = await import('@/lib/localStore');
-    try {
-      let user = await getUserByFingerprintLocal(fp);
-      if (user) {
-        await updateUserLoginLocal(fp);
-      } else {
-        user = await createUserLocal(fp);
-      }
-      setLocalUserId(user.id);
-      const chars = await getCharactersByUserIdLocal(user.id);
-      setCharacters(chars);
-      if (chars.length > 0) {
-        setSelectedCharacter(chars[0]);
-      }
-    } catch (error) {
-      console.error('本地认证失败:', error);
-    }
-  };
-
-  const fetchCharacters = async () => {
-    try {
-      const ds = getDataSource();
-      const chars = await ds.getCharacters('', fingerprint);
-      setCharacters(chars);
-      if (chars.length > 0 && !selectedCharacter) {
-        setSelectedCharacter(chars[0]);
-      }
-    } catch (error) {
-      console.error('获取角色失败:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (selectedCharacter) {
-      fetchPlansAndEquipments();
-    }
-  }, [selectedCharacter]);
-
-  const fetchPlansAndEquipments = async () => {
-    if (!selectedCharacter) return;
-    try {
-      const ds = getDataSource();
-      const [plansData, equipData] = await Promise.all([
-        ds.getPlans(selectedCharacter.id),
-        ds.getEquipments(selectedCharacter.id)
-      ]);
-      setPlans(plansData);
-      setEquipments(equipData);
-      if (plansData.length > 0 && !selectedPlan) {
-        setSelectedPlan(plansData[0]);
-      }
-    } catch (error) {
-      console.error('获取数据失败:', error);
-    }
-  };
+  // 游戏角色选择状态
+  const [selectedGameRoleId, setSelectedGameRoleId] = useState<string>('');
+  const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
 
   useEffect(() => {
     if (selectedCharacter && plans.length > 0) {
       fetchGraduation();
     }
   }, [selectedCharacter, plans, equipments]);
+
+  useEffect(() => {
+    if (selectedCharacter) {
+      fetchRolePanel(selectedCharacter);
+    }
+  }, [selectedCharacter]);
 
   const fetchGraduation = async () => {
     if (!selectedCharacter) return;
@@ -223,64 +109,13 @@ export default function Home() {
     }
   };
 
-  const handleCreateCharacter = async () => {
-    if (!newCharacterName.trim()) return;
-    try {
-      const ds = getDataSource();
-      const character = await ds.createCharacter(localUserId || '', fingerprint, newCharacterName.trim());
-      setCharacters([...characters, character]);
-      setSelectedCharacter(character);
-      setNewCharacterName('');
-      setShowNewCharacterModal(false);
-    } catch (error) {
-      console.error('创建角色失败:', error);
-    }
-  };
-
   const handleDeleteCharacter = async () => {
     if (!selectedCharacter) return;
     try {
       const ds = getDataSource();
       await ds.deleteCharacter(selectedCharacter.id);
-      const newCharacters = characters.filter(c => c.id !== selectedCharacter.id);
-      setCharacters(newCharacters);
-      setSelectedCharacter(newCharacters.length > 0 ? newCharacters[0] : null);
     } catch (error) {
       console.error('删除角色失败:', error);
-    }
-  };
-
-  const handleCreatePlan = async () => {
-    if (!selectedCharacter) return;
-    try {
-      const ds = getDataSource();
-      const plan = await ds.createPlan(selectedCharacter.id, {
-        name: newPlanData.name,
-        flow_type: newPlanData.flowType,
-        version: newPlanData.version,
-        flow_category: newPlanData.flowCategory,
-        bow_type: newPlanData.bowType,
-        suit_type: newPlanData.suitType,
-        loan_dingyin: newPlanData.loanDingyin
-      });
-      setPlans([...plans, plan]);
-      setSelectedPlan(plan);
-      setShowNewPlanModal(false);
-    } catch (error) {
-      console.error('创建方案失败:', error);
-    }
-  };
-
-  const handleDeletePlan = async () => {
-    if (!selectedPlan) return;
-    try {
-      const ds = getDataSource();
-      await ds.deletePlan(selectedPlan.id);
-      const newPlans = plans.filter(p => p.id !== selectedPlan.id);
-      setPlans(newPlans);
-      setSelectedPlan(newPlans.length > 0 ? newPlans[0] : null);
-    } catch (error) {
-      console.error('删除方案失败:', error);
     }
   };
 
@@ -288,7 +123,7 @@ export default function Home() {
     if (!selectedCharacter || !newEquipmentData.name.trim()) return;
     try {
       const ds = getDataSource();
-      const equipment = await ds.createEquipment(selectedCharacter.id, {
+      await ds.createEquipment(selectedCharacter.id, {
         slot: newEquipmentData.slot,
         name: newEquipmentData.name,
         level: newEquipmentData.level,
@@ -296,7 +131,6 @@ export default function Home() {
         is_wearing: newEquipmentData.isWearing,
         suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
       });
-      setEquipments([...equipments, equipment]);
       setShowNewEquipmentModal(false);
       setNewEquipmentData({
         slot: EQUIPMENT_SLOTS[0],
@@ -315,7 +149,6 @@ export default function Home() {
     try {
       const ds = getDataSource();
       await ds.deleteEquipment(equipmentId);
-      setEquipments(equipments.filter(e => e.id !== equipmentId));
     } catch (error) {
       console.error('删除装备失败:', error);
     }
@@ -325,9 +158,38 @@ export default function Home() {
     try {
       const ds = getDataSource();
       await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
-      setEquipments(equipments.map(e =>
-        e.id === equipment.id ? { ...e, is_wearing: !e.is_wearing } : e
-      ));
+    } catch (error) {
+      console.error('更新装备失败:', error);
+    }
+  };
+
+  const handleEditEquipment = (equipment: Equipment) => {
+    setEditingEquipment(equipment);
+    setEditEquipmentData({
+      slot: equipment.slot,
+      name: equipment.name,
+      level: equipment.level,
+      attributes: [...equipment.attributes],
+      isWearing: equipment.is_wearing,
+      suitType: equipment.suit_type || ''
+    });
+    setShowEditEquipmentModal(true);
+  };
+
+  const handleUpdateEquipment = async () => {
+    if (!editingEquipment) return;
+    try {
+      const ds = getDataSource();
+      await ds.updateEquipment(editingEquipment.id, {
+        slot: editEquipmentData.slot,
+        name: editEquipmentData.name,
+        level: editEquipmentData.level,
+        attributes: editEquipmentData.attributes,
+        is_wearing: editEquipmentData.isWearing,
+        suit_type: (editEquipmentData.suitType || undefined) as SuitType | undefined
+      });
+      setShowEditEquipmentModal(false);
+      setEditingEquipment(null);
     } catch (error) {
       console.error('更新装备失败:', error);
     }
@@ -360,10 +222,303 @@ export default function Home() {
     }
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // 扫码登录成功，保存凭证
+  const handleQRCodeAuthSuccess = (cookies: any, loginToken: string, roles: GameRole[]) => {
+    saveAuthCredentials(cookies, loginToken, roles);
+    setShowQRCodeAuth(false);
+  };
 
+  // 处理游戏角色选择
+  const handleGameRoleSelect = async (gameRoleId: string) => {
+    setSelectedGameRoleId(gameRoleId);
+    
+    if (!gameRoleId || !authCredentials) return;
+    
+    const gameRole = availableGameRoles.find(r => r.roleId === gameRoleId);
+    if (!gameRole) return;
+    
+    // 检查是否已经创建过这个角色
+    const existingCharacter = characters.find(c => c.role_id === gameRoleId && c.server === gameRole.server);
+    if (existingCharacter) {
+      setSelectedCharacter(existingCharacter);
+      setSelectedGameRoleId('');
+      // 如果已有角色，尝试读取保存的角色面板数据
+      const authDataStr = localStorage.getItem(`auth_${existingCharacter.id}`);
+      if (authDataStr) {
+        const authData = JSON.parse(authDataStr);
+        if (authData.rolePanelData) {
+          // 这里我们需要调用 useAppData 来更新状态，但我们在这里不能直接调用
+          // 所以让 selectedCharacter 的 useEffect 来处理
+        }
+      }
+      return;
+    }
+    
+    // 创建新角色
+    setIsCreatingCharacter(true);
+    try {
+      const ds = getDataSource();
+      
+      // 获取角色信息（装备等）
+      const response = await fetch('/api/auth/role-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roleId: gameRole.roleId,
+          server: gameRole.server,
+          cookies: authCredentials.cookies,
+          loginToken: authCredentials.loginToken
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // 创建角色
+        const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
+          icon: gameRole.icon,
+          level: gameRole.level,
+          server_name: gameRole.serverName,
+          role_id: gameRole.roleId,
+          server: gameRole.server
+        });
+        
+        // 获取角色面板数据
+        let rolePanelData: any = null;
+        try {
+          const panelResponse = await fetch('/api/auth/role-panel', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              roleId: gameRole.roleId,
+              server: gameRole.server,
+              cookies: authCredentials.cookies,
+              loginToken: authCredentials.loginToken
+            })
+          });
+          
+          const panelResult = await panelResponse.json();
+          if (panelResult.success && panelResult.data) {
+            rolePanelData = panelResult.data;
+          }
+        } catch (panelError) {
+          console.error('获取角色面板数据失败:', panelError);
+        }
+        
+        // 保存认证信息（区分 roleInfo 和 rolePanelData）
+        localStorage.setItem(`auth_${character.id}`, JSON.stringify({
+          roleId: gameRole.roleId,
+          server: gameRole.server,
+          cookies: authCredentials.cookies,
+          loginToken: authCredentials.loginToken,
+          roleInfo: result.data.roleInfo,
+          reportToken: result.data.reportToken,
+          rolePanelData: rolePanelData
+        }));
+        
+        // 导入装备
+        const importedCount = await importRoleInfoEquipments(character.id, result.data.roleInfo);
+        
+        setSelectedCharacter(character);
+        setSelectedGameRoleId('');
+        await fetchCharacters();
+        await fetchPlansAndEquipments();
+        
+        const message = importedCount > 0 
+          ? `角色绑定成功！已自动导入 ${importedCount} 件装备`
+          : '角色绑定成功！';
+        alert(message);
+      } else {
+        alert('获取角色信息失败');
+      }
+    } catch (error) {
+      console.error('创建角色失败:', error);
+      alert('创建角色失败');
+    } finally {
+      setIsCreatingCharacter(false);
+    }
+  };
+
+  const importRoleInfoEquipments = async (characterId: string, roleInfo: any): Promise<number> => {
+    if (!roleInfo) return 0;
+    
+    console.log('roleInfo keys:', Object.keys(roleInfo).slice(0, 20));
+    console.log('roleInfo combat keys:', Object.keys(roleInfo).filter(k => k.includes('combat') || k.includes('equip')));
+    
+    const ds = getDataSource();
+    let equips: any[] = [];
+    
+    const wearEquips = roleInfo['combat_plan.wear_equips'];
+    
+    if (wearEquips && typeof wearEquips === 'object') {
+      console.log('Found wear_equips, keys:', Object.keys(wearEquips));
+      equips = parseRawEquipments({ combat_plan: { wear_equips: wearEquips } });
+    } else if (roleInfo.character_info?.equipments) {
+      equips = roleInfo.character_info.equipments;
+    } else if (roleInfo.combat_plan?.wear_equips) {
+      equips = parseRawEquipments(roleInfo);
+    }
+    
+    console.log('Found equipments count:', equips.length);
+    
+    if (equips.length === 0) return 0;
+    
+    let count = 0;
+    
+    const slotMap: Record<string, EquipmentSlot> = {
+      '1': '主武器', '2': '副武器', '3': '冠胄', '4': '胸甲',
+      '5': '胫甲', '8': '腕甲', '9': '射决', '10': '环', '11': '佩', '21': '弓'
+    };
+    
+    const attrNameMap: Record<string, string> = {
+      'MIN_W_ATK': '最小外功攻击',
+      'MAX_W_ATK': '最大外功攻击',
+      'MIN_M_ATK': '最小内功攻击',
+      'MAX_M_ATK': '最大内功攻击',
+      'DEF': '防御',
+      'HP': '气血',
+      'PVP_DEF': 'PVP防御',
+      'PVE_DEF': 'PVE防御'
+    };
+    
+    for (const equip of equips) {
+      try {
+        const slot = slotMap[equip.slot];
+        if (!slot) {
+          console.warn('异常装备部位:', equip.slot, '装备:', equip.name || equip.no);
+        }
+        const mappedSlot = slot || EQUIPMENT_SLOTS[0];
+        const attributes: EquipmentAttribute[] = [];
+        
+        if (equip.base_attrs) {
+          for (const [key, value] of Object.entries(equip.base_attrs)) {
+            const name = attrNameMap[key] || key;
+            attributes.push({ name, value: value as number, is_main: true });
+          }
+        }
+        
+        for (const affix of equip.base_affixes || []) {
+          const affixName = affix.name || (affix.id ? `词条${affix.id}` : '未知词条');
+          attributes.push({ 
+            name: affixName, 
+            value: affix.value as number, 
+            is_main: affix.is_max as boolean,
+            rate: affix.rate as number,
+            quality: affix.quality as number
+          });
+        }
+        
+        await ds.createEquipment(characterId, {
+          slot: mappedSlot,
+          name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
+          level: equip.level || 0,
+          attributes,
+          is_wearing: true,
+          suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
+        });
+        
+        count++;
+      } catch (error) {
+        console.error('导入装备失败:', equip.name || equip.slot, error);
+      }
+    }
+    
+    return count;
+  };
+
+  const parseRawEquipments = (data: any): any[] => {
+    const wearEquips = data.combat_plan?.wear_equips || {};
+    const equipments: any[] = [];
+    
+    console.log('parseRawEquipments - wearEquips keys:', Object.keys(wearEquips));
+    console.log('parseRawEquipments - wearEquips count:', Object.keys(wearEquips).length);
+    
+    for (const [slot, equipData] of Object.entries(wearEquips)) {
+      console.log(`parseRawEquipments - processing slot ${slot}:`, equipData);
+      
+      const equip = equipData as any;
+      const ex = equip.ex || {};
+      const suffixId = ex.suffix || 0;
+      const baseAffixes = ex.base_affixes || [];
+      
+      if (!equip.No || equip.No === 0 || equip.No === 2402000) {
+        console.log(`parseRawEquipments - 跳过异常装备 slot=${slot}, No=${equip.No}`);
+        continue;
+      }
+      
+      if (baseAffixes.length === 0 && Object.keys(ex.base_attrs || {}).length === 0) {
+        console.log(`parseRawEquipments - 跳过无属性装备 slot=${slot}, No=${equip.No}`);
+        continue;
+      }
+      
+      let equipName = `装备${equip.No || ''}`;
+      let suffixName = `套装${suffixId}`;
+      let equipLevel = 0;
+      
+      if (configData?.equip_data) {
+        const equipInfo = configData.equip_data[String(equip.No)];
+        if (equipInfo) {
+          equipName = equipInfo.name;
+          equipLevel = equipInfo.level || 0;
+        } else {
+          console.log(`parseRawEquipments - 装备No=${equip.No}不在配置文件中`);
+        }
+      }
+      
+      if (configData?.suffix_data) {
+        const suffixInfo = configData.suffix_data[String(suffixId)];
+        if (suffixInfo) {
+          suffixName = suffixInfo.name;
+        }
+      }
+      
+      const equipInfo: any = {
+        slot: slot,
+        no: equip.No || 0,
+        name: equipName,
+        level: equipLevel,
+        suffix: suffixId,
+        suffix_name: suffixName,
+        base_attrs: ex.base_attrs || {},
+        base_affixes: []
+      };
+      
+      console.log(`parseRawEquipments - slot ${slot} has ${baseAffixes.length} affixes`);
+      
+      for (const affix of baseAffixes) {
+        if (Array.isArray(affix) && affix.length >= 4) {
+          let affixName = `词条${affix[0]}`;
+          
+          if (configData?.affix_data) {
+            const affixInfo = configData.affix_data[String(affix[0])];
+            if (affixInfo) {
+              affixName = affixInfo.name;
+            }
+          }
+          
+          equipInfo.base_affixes.push({
+            id: affix[0],
+            name: affixName,
+            value: affix[1],
+            rate: Math.round(affix[2] * 100 * 100) / 100,
+            quality: affix[3],
+            is_max: affix.length > 4 ? affix[4] : false
+          });
+        }
+      }
+      
+      equipments.push(equipInfo);
+    }
+    
+    console.log('parseRawEquipments - returning', equipments.length, 'equipments');
+    return equipments;
+  };
+
+  const handleImport = async (file: File) => {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
@@ -373,7 +528,6 @@ export default function Home() {
         if (localUserId) {
           const { getCharactersByUserIdLocal } = await import('@/lib/localStore');
           const chars = await getCharactersByUserIdLocal(localUserId);
-          setCharacters(chars);
           setSelectedCharacter(chars.length > 0 ? chars[0] : null);
         }
         alert('导入成功！');
@@ -387,6 +541,13 @@ export default function Home() {
       console.error('导入失败:', error);
       alert('导入失败，请检查文件格式');
     }
+  };
+
+  const getAffixNames = (index?: number) => getAffixNamesBase(index, affixMode);
+
+  const getSuitNames = () => {
+    if (!configData?.suffix_data) return [];
+    return Object.values(configData.suffix_data).map(s => s.name).filter((name, index, self) => self.indexOf(name) === index).sort();
   };
 
   const filteredEquipments = equipments.filter(e => {
@@ -424,43 +585,144 @@ export default function Home() {
       </header>
 
       <div className="flex flex-wrap items-center gap-4 mb-6 bg-gray-800/50 p-4 rounded-lg">
-        <select
-          value={selectedCharacter?.id || ''}
-          onChange={(e) => {
-            const char = characters.find(c => c.id === e.target.value);
-            setSelectedCharacter(char || null);
-            setSelectedPlan(null);
-          }}
-          className="min-w-[200px]"
-        >
-          <option value="" disabled>-- 请选择/添加角色 --</option>
-          {characters.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={() => setShowNewCharacterModal(true)}
-          className="px-4 py-2 bg-green-500 text-gray-900 rounded-lg btn-hover font-medium"
-        >
-          + 新建角色
-        </button>
-
-        {selectedCharacter && (
-          <button
-            onClick={handleDeleteCharacter}
-            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition"
-          >
-            删除
-          </button>
+        {/* 未登录状态 */}
+        {!authCredentials && (
+          <div className="flex items-center gap-4 w-full">
+            <div className="text-gray-400">请先扫码登录</div>
+            <button
+              onClick={() => setShowQRCodeAuth(true)}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg btn-hover font-medium"
+            >
+              📱 扫码登录
+            </button>
+          </div>
         )}
 
-        <button
-          onClick={() => setShowExportModal(true)}
-          className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
-        >
-          导出/导入数据
-        </button>
+        {/* 已登录状态 */}
+        {authCredentials && (
+          <div className="flex items-center gap-4 w-full flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <span className="text-gray-300">已登录</span>
+            </div>
+
+            {/* 游戏角色选择下拉 - 随时可用 */}
+            {availableGameRoles.length > 0 && (
+              <select
+                value={selectedGameRoleId}
+                onChange={(e) => handleGameRoleSelect(e.target.value)}
+                className="min-w-[250px] px-3 py-2 bg-gray-700 rounded-lg"
+                disabled={isCreatingCharacter}
+              >
+                <option value="" disabled>选择游戏角色</option>
+                {availableGameRoles.map((role) => {
+                  const isAlreadyBound = characters.some(c => 
+                    c.role_id === role.roleId && c.server === role.server
+                  );
+                  return (
+                    <option key={role.roleId} value={role.roleId}>
+                      {role.nick} - Lv.{role.level} ({role.serverName})
+                      {isAlreadyBound ? ' ✓' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+            
+            {isCreatingCharacter && (
+              <div className="flex items-center gap-2 text-blue-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400"></div>
+                创建角色中...
+              </div>
+            )}
+
+            {/* 已选择角色的信息显示和操作 */}
+            {selectedCharacter && (
+              <>
+                <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-700">
+                  {selectedCharacter.icon && (
+                    <img
+                      src={selectedCharacter.icon}
+                      alt={selectedCharacter.name}
+                      className="w-12 h-12 rounded-full border-2 border-green-400"
+                    />
+                  )}
+                  <div>
+                    <div className="font-medium text-white">{selectedCharacter.name}</div>
+                    {selectedCharacter.level && (
+                      <div className="text-sm text-gray-400">等级 {selectedCharacter.level}</div>
+                    )}
+                    {selectedCharacter.server_name && (
+                      <div className="text-sm text-gray-400">{selectedCharacter.server_name}</div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 ml-auto">
+                  {/* 已创建角色选择下拉 */}
+                  <select
+                    value={selectedCharacter?.id || ''}
+                    onChange={(e) => {
+                      const char = characters.find(c => c.id === e.target.value);
+                      setSelectedCharacter(char || null);
+                      setSelectedPlan(null);
+                    }}
+                    className="min-w-[200px]"
+                  >
+                    {characters.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  {/* 切换账号按钮 */}
+                  <button
+                    onClick={() => setShowQRCodeAuth(true)}
+                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
+                  >
+                    切换账号
+                  </button>
+
+                  {/* 删除角色按钮 */}
+                  <button
+                    onClick={handleDeleteCharacter}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition"
+                  >
+                    删除角色
+                  </button>
+
+                  {/* 导出/导入按钮 */}
+                  <button
+                    onClick={() => setShowExportModal(true)}
+                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
+                  >
+                    导出/导入数据
+                  </button>
+
+                  {/* 调号助手按钮 */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/captured');
+                        const result = await response.json();
+                        if (result.success) {
+                          setTuningCapturedData(result.data);
+                        } else {
+                          setTuningCapturedData(null);
+                        }
+                      } catch (error) {
+                        setTuningCapturedData(null);
+                      }
+                      setShowTuningAssistant(true);
+                    }}
+                    className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
+                  >
+                    🤖 调号助手
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {selectedCharacter ? (
@@ -495,447 +757,316 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              {filteredEquipments.map(equipment => {
-                const equipImage = configData?.equip_data ? Object.values(configData.equip_data).find(e => e.name === equipment.name)?.shortImage : null;
-                const suitInfo = configData?.suffix_data ? Object.values(configData.suffix_data).find(s => s.name === equipment.suit_type) : null;
-                const mainAttrs = equipment.attributes?.filter(a => a.is_main) || [];
-                const subAttrs = equipment.attributes?.filter(a => !a.is_main) || [];
-                return (
-                  <div
+            <div className="grid grid-cols-5 gap-4 mb-4">
+              {filteredEquipments
+                .sort((a, b) => {
+                  const slotOrder = ['剑', '枪', '冠胄', '胸甲', '弓', '环', '佩', '胫甲', '腕甲', '射决'];
+                  const aIndex = slotOrder.indexOf(a.slot);
+                  const bIndex = slotOrder.indexOf(b.slot);
+                  if (aIndex === -1 && bIndex === -1) return 0;
+                  if (aIndex === -1) return 1;
+                  if (bIndex === -1) return -1;
+                  return aIndex - bIndex;
+                })
+                .map(equipment => (
+                  <EquipmentCard
                     key={equipment.id}
-                    className={`equipment-card ${equipment.is_wearing ? 'border-green-400' : ''}`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300">{equipment.slot}</span>
-                      <button
-                        onClick={() => handleDeleteEquipment(equipment.id)}
-                        className="text-red-400 hover:text-red-300 text-sm"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {equipImage && (
-                      <div className="relative w-full h-24 mb-2 flex items-center justify-center bg-gray-900/50 rounded overflow-hidden">
-                        <img src={equipImage} alt={equipment.name} className="max-h-full max-w-full object-contain" />
-                        {equipment.is_wearing && (
-                          <span className="absolute top-1 right-1 text-xs px-1.5 py-0.5 bg-green-500 text-gray-900 rounded">穿着中</span>
-                        )}
-                      </div>
-                    )}
-                    <h3 className="font-medium text-sm mb-1 truncate">{equipment.name}</h3>
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
-                      <span>等级: {equipment.level}</span>
-                      {suitInfo && (
-                        <div className="flex items-center gap-1 text-green-400">
-                          <img src={suitInfo.icon} alt={suitInfo.name} className="w-4 h-4 object-contain" />
-                          <span className="truncate max-w-[60px]">{suitInfo.name}</span>
-                        </div>
-                      )}
-                    </div>
-                    {equipment.suit_type && !suitInfo && (
-                      <p className="text-xs text-green-400 mb-2">套装: {equipment.suit_type}</p>
-                    )}
-                    <div className="space-y-1">
-                      {mainAttrs.length > 0 && (
-                        <div className="text-xs">
-                          {mainAttrs.map((attr, i) => (
-                            <div key={i} className="flex justify-between text-gray-300">
-                              <span className="truncate">{attr.name}</span>
-                              <span className="text-green-400 ml-1">{attr.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {subAttrs.length > 0 && (
-                        <div className="text-xs border-t border-gray-700 pt-1 mt-1">
-                          {subAttrs.slice(0, 3).map((attr, i) => (
-                            <div key={i} className="flex justify-between text-gray-400">
-                              <span className="truncate">{attr.name}</span>
-                              <span className="text-blue-400 ml-1">{attr.value}</span>
-                            </div>
-                          ))}
-                          {subAttrs.length > 3 && (
-                            <div className="text-gray-500 text-center">+{subAttrs.length - 3}更多</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {!equipImage && (
-                      <button
-                        onClick={() => handleToggleWearing(equipment)}
-                        className={`mt-2 w-full py-1 rounded text-xs ${
-                          equipment.is_wearing
-                            ? 'bg-green-500 text-gray-900'
-                            : 'bg-gray-700 text-gray-300'
-                        }`}
-                      >
-                        {equipment.is_wearing ? '穿着中' : '未穿着'}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                    equipment={equipment}
+                    getEquipImageUrl={getEquipImageUrl}
+                    configData={configData}
+                    onWear={() => handleToggleWearing(equipment)}
+                    onUnwear={() => handleToggleWearing(equipment)}
+                    onDelete={() => handleDeleteEquipment(equipment.id)}
+                    onEdit={() => handleEditEquipment(equipment)}
+                  />
+                ))}
 
               <button
                 onClick={() => setShowNewEquipmentModal(true)}
                 className="equipment-card flex items-center justify-center text-green-400 hover:border-green-400"
               >
-                <span className="text-xl">+ 录入装备</span>
+                <span className="text-xl">+</span>
               </button>
             </div>
           </div>
 
           <div className="bg-gray-800/50 p-4 rounded-lg">
-            <h2 className="text-xl font-bold mb-4 text-green-400">面板</h2>
+            <h2 className="text-xl font-bold mb-4 text-green-400">角色属性面板</h2>
 
-            <div className="mb-4">
-              <select
-                value={selectedPlan?.id || ''}
-                onChange={(e) => {
-                  const plan = plans.find(p => p.id === e.target.value);
-                  setSelectedPlan(plan || null);
-                }}
-                className="w-full"
-              >
-                {plans.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
+            {isLoadingRolePanel ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mr-3"></div>
+                <span className="text-gray-400">加载中...</span>
+              </div>
+            ) : rolePanelData ? (
+              <div className="space-y-4">
+                
+                {/* 心法 */}
+{(() => {
+  const xinfaSource =
+    rolePanelData?.['combat_plan.xinfa_info'] ??
+    rolePanelData?.xinfa_info;
 
-            {selectedPlan && (
-              <>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">流派</label>
-                    <select
-                      value={selectedPlan.flow_type}
-                      onChange={async (e) => {
-                        try {
-                          const ds = getDataSource();
-                          await ds.updatePlan(selectedPlan.id, { flow_type: e.target.value as FlowType });
-                        } catch (error) {
-                          console.error('更新流派失败:', error);
-                        }
-                      }}
-                      className="w-full"
-                    >
-                      {FLOW_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+  if (!xinfaSource || typeof xinfaSource !== 'object') {
+    return null;
+  }
+
+  return (
+    <div className="bg-gray-700/50 p-3 rounded-lg">
+      <div className="text-lg font-medium mb-2 text-orange-300">心法</div>
+      <div className="grid grid-cols-4 gap-2">
+        {Object.entries(xinfaSource).map(([id, xinfa]) => {
+          const xinfaConfig = getXinfaInfo(id);
+          const rank = Number(xinfa?.rank) || 0;
+          
+         // 兜底：没有配置就不渲染
+          if (!xinfaConfig) return null;
+ return (
+    <div
+      key={id}
+      className="relative w-[72px] h-[88px] rounded-lg overflow-hidden shadow"
+      style={{
+        backgroundImage: `url(${xinfaConfig.bg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* 半透明遮罩，让图标更清晰 */}
+      <div className="absolute inset-0 bg-black/30" />
+
+      {/* 心法图标 */}
+      <img
+        src={xinfaConfig.image1}
+        alt={xinfaConfig.name}
+        className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded"
+        onError={(e) => {
+          e.currentTarget.src = '/img/default_xinfa.png';
+        }}
+      />
+
+      {/* 心法名称 */}
+      <div className="absolute bottom-5 left-0 right-0 text-[10px] text-center text-white truncate px-1">
+        {xinfaConfig.name}
+      </div>
+
+      {/* 重数小圆点 */}
+      <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[3px]">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <span
+            key={i}
+            className={`w-1.5 h-1.5 rounded-full ${
+              i < rank
+                ? 'bg-yellow-400 shadow-yellow-400/80'
+                : 'bg-gray-500/70'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+        })}
+      </div>
+    </div>
+  );
+})()}
+           {/* 概率属性 */}
+                <div className="bg-gray-700/50 p-3 rounded-lg">
+                  <div className="text-lg font-medium mb-2 text-yellow-300">三率属性</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-gray-400">精准概率</div>
+                      <div className="font-medium">{rolePanelData.ACR_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">实际精准概率</div>
+                      <div className="font-medium text-green-300">{rolePanelData.REAL_ACR_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">会心概率</div>
+                      <div className="font-medium">{rolePanelData.CRI_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">实际会心概率</div>
+                      <div className="font-medium text-green-300">{rolePanelData.REAL_CRI_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">会意概率</div>
+                      <div className="font-medium">{rolePanelData.BASH_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">实际会意概率</div>
+                      <div className="font-medium text-green-300">{rolePanelData.REAL_BASH_PROB}%</div>
+                    </div>
+
+                    <div>
+                      <div className="text-sm text-gray-400">直接会心概率</div>
+                      <div className="font-medium">{rolePanelData.DIRECT_CRI_PROB}%</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">直接会意概率</div>
+                      <div className="font-medium">{rolePanelData.DIRECT_BASH_PROB}%</div>
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">版本</label>
-                    <select
-                      value={selectedPlan.version}
-                      onChange={async (e) => {
-                        try {
-                          const ds = getDataSource();
-                          await ds.updatePlan(selectedPlan.id, { version: e.target.value as VersionType });
-                        } catch (error) {
-                          console.error('更新版本失败:', error);
-                        }
-                      }}
-                      className="w-full"
-                    >
-                      {VERSIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">弓诀</label>
-                    <select
-                      value={selectedPlan.bow_type}
-                      onChange={async (e) => {
-                        try {
-                          const ds = getDataSource();
-                          await ds.updatePlan(selectedPlan.id, { bow_type: e.target.value as BowType });
-                        } catch (error) {
-                          console.error('更新弓诀失败:', error);
-                        }
-                      }}
-                      className="w-full"
-                    >
-                      {BOW_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">套装</label>
-                    <select
-                      value={selectedPlan.suit_type}
-                      onChange={async (e) => {
-                        try {
-                          const ds = getDataSource();
-                          await ds.updatePlan(selectedPlan.id, { suit_type: e.target.value as SuitType });
-                        } catch (error) {
-                          console.error('更新套装失败:', error);
-                        }
-                      }}
-                      className="w-full"
-                    >
-                      {SUIT_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="col-span-2 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedPlan.loan_dingyin}
-                      onChange={async (e) => {
-                        try {
-                          const ds = getDataSource();
-                          await ds.updatePlan(selectedPlan.id, { loan_dingyin: e.target.checked });
-                        } catch (error) {
-                          console.error('更新贷款定音失败:', error);
-                        }
-                      }}
-                    />
-                    <label className="text-sm">贷款定音</label>
+                </div>
+                {/* 攻击属性 */}
+                <div className="bg-gray-700/50 p-3 rounded-lg">
+                  <div className="text-lg font-medium mb-2 text-green-300">攻击属性</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-gray-400">最小外功攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_W_ATK}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大外功攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_W_ATK}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最小鸣金攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_A}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大鸣金攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_A}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最小牵丝攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_B}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大牵丝攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_B}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最小破竹攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_C}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大裂石攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_C}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最小破竹攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_E}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大破竹攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_E}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最小无相攻击</div>
+                      <div className="font-medium">{rolePanelData.MIN_ACTIVE_PRO_ATK}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-400">最大无相攻击</div>
+                      <div className="font-medium">{rolePanelData.MAX_ACTIVE_PRO_ATK}</div>
+                    </div>
                   </div>
                 </div>
 
-                {currentGraduation && (
-                  <div className="mt-6">
-                    <h3 className="text-lg font-medium mb-4">毕业率</h3>
-
-                    <div className="mb-4">
-                      <div className="flex justify-between mb-2">
-                        <span>总体毕业率</span>
-                        <span style={{ color: getGraduationColor(currentGraduation.overall_rate) }}>
-                          {currentGraduation.overall_rate.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="progress-bar h-4">
-                        <div
-                          className="progress-fill"
-                          style={{
-                            width: `${currentGraduation.overall_rate}%`,
-                            background: getGraduationColor(currentGraduation.overall_rate)
-                          }}
-                        />
-                      </div>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {getGraduationLevel(currentGraduation.overall_rate)}
-                      </p>
+                {/* 防御属性 */}
+                <div className="bg-gray-700/50 p-3 rounded-lg">
+                  <div className="text-lg font-medium mb-2 text-blue-300">防御属性</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-gray-400">外攻防御</div>
+                      <div className="font-medium">{rolePanelData.W_DEF}</div>
                     </div>
-
-                    <div className="space-y-2">
-                      {Object.entries(currentGraduation.slot_rates).map(([slot, rate]) => (
-                        <div key={slot}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>{slot}</span>
-                            <span style={{ color: getGraduationColor(rate) }}>
-                              {rate.toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="progress-bar h-2">
-                            <div
-                              className="progress-fill"
-                              style={{
-                                width: `${rate}%`,
-                                background: getGraduationColor(rate)
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                    <div>
+                      <div className="text-sm text-gray-400">气血最大值</div>
+                      <div className="font-medium">{rolePanelData.hpMax}</div>
                     </div>
-
-                    {currentGraduation.recommendations.length > 0 && (
-                      <div className="mt-4 p-3 bg-gray-700/50 rounded">
-                        <h4 className="text-sm font-medium mb-2 text-yellow-400">优化建议</h4>
-                        {currentGraduation.recommendations.map((rec, i) => (
-                          <p key={i} className="text-sm text-gray-300">{rec}</p>
-                        ))}
-                      </div>
-                    )}
+                         
                   </div>
-                )}
-
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={handleDeletePlan}
-                    className="px-3 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
-                  >
-                    删除方案
-                  </button>
-                  <button
-                    onClick={() => setShowNewPlanModal(true)}
-                    className="px-3 py-1 bg-green-500/20 text-green-400 rounded hover:bg-green-500/30"
-                  >
-                    + 新增
-                  </button>
                 </div>
-              </>
-            )}
 
-            {!selectedPlan && plans.length === 0 && (
-              <button
-                onClick={() => setShowNewPlanModal(true)}
-                className="w-full py-2 bg-green-500 text-gray-900 rounded-lg btn-hover"
-              >
-                + 创建方案
-              </button>
+     
+
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <p>暂无角色面板数据</p>
+                <p className="text-sm mt-2">角色信息将在选择角色后自动获取</p>
+              </div>
             )}
           </div>
         </div>
       ) : (
         <div className="text-center py-12">
           <h2 className="text-xl text-gray-400 mb-4">欢迎使用燕云十六声装备毕业率管理器</h2>
-          <p className="text-gray-500 mb-6">请先创建一个角色开始使用</p>
-          <button
-            onClick={() => setShowNewCharacterModal(true)}
-            className="px-6 py-3 bg-green-500 text-gray-900 rounded-lg btn-hover font-medium"
-          >
-            + 新建角色
-          </button>
+          <p className="text-gray-500 mb-6">
+            {!authCredentials 
+              ? '请先扫码登录并选择角色开始使用' 
+              : '请从上方选择游戏角色开始使用'}
+          </p>
+          {!authCredentials && (
+            <button
+              onClick={() => setShowQRCodeAuth(true)}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg btn-hover font-medium"
+            >
+              📱 扫码登录
+            </button>
+          )}
         </div>
       )}
 
-      {showNewCharacterModal && (
+      <NewEquipmentModal
+        isOpen={showNewEquipmentModal}
+        onClose={() => setShowNewEquipmentModal(false)}
+        equipmentData={newEquipmentData}
+        setEquipmentData={setNewEquipmentData}
+        affixMode={affixMode}
+        setAffixMode={setAffixMode}
+        getEquipNames={getEquipNames}
+        getAffixNames={getAffixNames}
+        getSlotFromEquipName={getSlotFromEquipName}
+        onSubmit={handleCreateEquipment}
+      />
+
+      <EditEquipmentModal
+        isOpen={showEditEquipmentModal}
+        onClose={() => setShowEditEquipmentModal(false)}
+        equipment={editingEquipment}
+        equipmentData={editEquipmentData}
+        setEquipmentData={setEditEquipmentData}
+        affixMode={affixMode}
+        setAffixMode={setAffixMode}
+        getEquipNames={getEquipNames}
+        getAffixNames={getAffixNames}
+        getSlotFromEquipName={getSlotFromEquipName}
+        onSubmit={handleUpdateEquipment}
+      />
+
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        onImport={handleImport}
+      />
+
+      <AboutModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+      />
+
+      <QRCodeAuthModal
+        isOpen={showQRCodeAuth}
+        onClose={() => setShowQRCodeAuth(false)}
+        onSuccess={handleQRCodeAuthSuccess}
+      />
+
+      {showTuningAssistant && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">新建角色</h2>
-            <input
-              type="text"
-              placeholder="请输入新角色名称"
-              value={newCharacterName}
-              onChange={(e) => setNewCharacterName(e.target.value)}
-              className="w-full mb-4"
-              autoFocus
-            />
-            <div className="flex gap-4">
-              <button onClick={() => setShowNewCharacterModal(false)} className="px-4 py-2 bg-gray-700 rounded-lg">取消</button>
-              <button onClick={handleCreateCharacter} className="px-4 py-2 bg-green-500 text-gray-900 rounded-lg btn-hover">确认创建</button>
+          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-green-400">大神AI调号助手</h2>
+              <button
+                onClick={() => setShowTuningAssistant(false)}
+                className="px-3 py-1 bg-gray-700 rounded-lg hover:bg-gray-600"
+              >
+                关闭
+              </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showNewPlanModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">新建方案</h2>
-            <div className="space-y-4">
-              <input type="text" placeholder="方案名称" value={newPlanData.name} onChange={(e) => setNewPlanData({ ...newPlanData, name: e.target.value })} className="w-full" />
-              <select value={newPlanData.flowType} onChange={(e) => setNewPlanData({ ...newPlanData, flowType: e.target.value as any })} className="w-full">
-                {FLOW_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select value={newPlanData.suitType} onChange={(e) => setNewPlanData({ ...newPlanData, suitType: e.target.value as any })} className="w-full">
-                {SUIT_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="flex gap-4 mt-4">
-              <button onClick={() => setShowNewPlanModal(false)} className="px-4 py-2 bg-gray-700 rounded-lg">取消</button>
-              <button onClick={handleCreatePlan} className="px-4 py-2 bg-green-500 text-gray-900 rounded-lg btn-hover">确认创建</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showNewEquipmentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-lg w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">录入装备</h2>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">部位</label>
-                  <select value={newEquipmentData.slot} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, slot: e.target.value as EquipmentSlot, name: '' })} className="w-full">
-                    {EQUIPMENT_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">等级</label>
-                  <input type="number" placeholder="等级" value={newEquipmentData.level} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, level: parseInt(e.target.value) || 0 })} className="w-full" />
-                </div>
-              </div>
-              <select value={newEquipmentData.name} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, name: e.target.value })} className="w-full">
-                <option value="">-- 选择装备 --</option>
-                {getEquipNames(newEquipmentData.slot).map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
-              <select value={newEquipmentData.suitType} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, suitType: e.target.value })} className="w-full">
-                <option value="">无套装</option>
-                {getSuitNames().map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-gray-400">装备属性</label>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => { setAffixMode('pve'); setNewEquipmentData({ ...newEquipmentData, attributes: [{ name: '', value: 0, is_main: true }] }); }} className={`text-xs px-2 py-1 rounded ${affixMode === 'pve' ? 'bg-green-500 text-gray-900' : 'bg-gray-700 text-gray-300'}`}>PVE定音</button>
-                    <button type="button" onClick={() => { setAffixMode('pvp'); setNewEquipmentData({ ...newEquipmentData, attributes: [{ name: '', value: 0, is_main: true }] }); }} className={`text-xs px-2 py-1 rounded ${affixMode === 'pvp' ? 'bg-red-500 text-gray-900' : 'bg-gray-700 text-gray-300'}`}>PVP定音</button>
-                  </div>
-                </div>
-                {newEquipmentData.attributes.map((attr, i) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <select value={attr.name} onChange={(e) => { const attrs = [...newEquipmentData.attributes]; attrs[i].name = e.target.value; setNewEquipmentData({ ...newEquipmentData, attributes: attrs }); }} className="flex-1">
-                      <option value="">-- 选择属性 --</option>
-                      {getAffixNames().map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
-                    <input type="number" placeholder="数值" value={attr.value} onChange={(e) => { const attrs = [...newEquipmentData.attributes]; attrs[i].value = parseInt(e.target.value) || 0; setNewEquipmentData({ ...newEquipmentData, attributes: attrs }); }} className="w-20" />
-                    <button onClick={() => { const attrs = newEquipmentData.attributes.filter((_, j) => j !== i); setNewEquipmentData({ ...newEquipmentData, attributes: attrs.length ? attrs : [{ name: '', value: 0, is_main: true }] }); }} className="px-2 bg-red-500/20 text-red-400 rounded">×</button>
-                  </div>
-                ))}
-                <button onClick={() => setNewEquipmentData({ ...newEquipmentData, attributes: [...newEquipmentData.attributes, { name: '', value: 0, is_main: false }] })} className="text-sm text-green-400">+ 添加属性</button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input type="checkbox" checked={newEquipmentData.isWearing} onChange={(e) => setNewEquipmentData({ ...newEquipmentData, isWearing: e.target.checked })} />
-                <label className="text-sm">当前穿着</label>
-              </div>
-            </div>
-            <div className="flex gap-4 mt-4">
-              <button onClick={() => setShowNewEquipmentModal(false)} className="px-4 py-2 bg-gray-700 rounded-lg">取消</button>
-              <button onClick={handleCreateEquipment} className="px-4 py-2 bg-green-500 text-gray-900 rounded-lg btn-hover">确认录入</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">导出/导入数据</h2>
-            <div className="space-y-4">
-              <button onClick={handleExport} className="w-full py-3 bg-green-500 text-gray-900 rounded-lg btn-hover">导出数据</button>
-              <label className="block w-full py-3 bg-blue-500/20 text-blue-400 rounded-lg text-center cursor-pointer hover:bg-blue-500/30">
-                导入数据
-                <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-              </label>
-            </div>
-            <button onClick={() => setShowExportModal(false)} className="w-full mt-4 px-4 py-2 bg-gray-700 rounded-lg">关闭</button>
-          </div>
-        </div>
-      )}
-
-      {showAboutModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">关于本网站</h2>
-            <div className="space-y-4 text-gray-300">
-              <h3 className="text-lg text-green-400">燕云十六声装备毕业率管理器</h3>
-              <p>欢迎使用本在线工具。这是一个专为燕云十六声竞速玩家打造的毕业率计算与装备管理平台。</p>
-              <h4 className="font-medium text-white">功能特点：</h4>
-              <ul className="list-disc list-inside space-y-1">
-                <li>浏览器指纹自动登录，无需注册账号</li>
-                <li>多角色管理，支持创建多个游戏角色</li>
-                <li>装备管理，按部位分类管理所有装备</li>
-                <li>流派方案，支持10种流派配置</li>
-                <li>毕业率计算，实时计算装备毕业进度</li>
-                <li>数据导入导出，支持数据备份和迁移</li>
-              </ul>
-              <h4 className="font-medium text-white">技术架构：</h4>
-              <ul className="list-disc list-inside space-y-1">
-                <li>前端：Next.js + React + TailwindCSS</li>
-                <li>后端：Vercel Edge Functions</li>
-                <li>数据库：Neon PostgreSQL</li>
-                <li>认证：FingerprintJS 浏览器指纹</li>
-              </ul>
-            </div>
-            <button onClick={() => setShowAboutModal(false)} className="w-full mt-4 px-4 py-2 bg-gray-700 rounded-lg">关闭</button>
+            <TuningAssistantReport equipments={equipments} plan={selectedPlan} capturedData={tuningCapturedData} rolePanelData={rolePanelData} />
           </div>
         </div>
       )}

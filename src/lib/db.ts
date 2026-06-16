@@ -37,6 +37,11 @@ export async function initDatabase() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         name VARCHAR(100) NOT NULL,
+        icon TEXT,
+        level VARCHAR(50),
+        server_name VARCHAR(100),
+        role_id VARCHAR(100),
+        server VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -120,10 +125,20 @@ export async function getCharactersByUserId(userId: string) {
   return result.rows;
 }
 
-export async function createCharacter(userId: string, name: string) {
+export async function createCharacter(
+  userId: string, 
+  name: string, 
+  options?: {
+    icon?: string;
+    level?: string;
+    server_name?: string;
+    role_id?: string;
+    server?: string;
+  }
+) {
   const result = await sql`
-    INSERT INTO characters (user_id, name) 
-    VALUES (${userId}, ${name}) 
+    INSERT INTO characters (user_id, name, icon, level, server_name, role_id, server) 
+    VALUES (${userId}, ${name}, ${options?.icon || null}, ${options?.level || null}, ${options?.server_name || null}, ${options?.role_id || null}, ${options?.server || null}) 
     RETURNING *
   `;
   return result.rows[0];

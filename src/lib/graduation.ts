@@ -28,6 +28,8 @@ const SLOT_THRESHOLDS: Record<EquipmentSlot, number> = {
   '胸甲': 75,
   '胫甲': 75,
   '腕甲': 75,
+  '射决': 80,
+  '弓': 85,
 };
 
 // 计算单件装备的毕业率
@@ -83,7 +85,7 @@ export function calculateGraduationRate(
       recommendations.push(`建议获取${slot}部位装备`);
     }
   });
-  
+
   // 计算整体毕业率（加权平均）
   const weights = FLOW_WEIGHTS[plan.flow_type] || {};
   let totalRate = 0;

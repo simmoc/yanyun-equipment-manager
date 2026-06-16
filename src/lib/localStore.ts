@@ -34,6 +34,11 @@ export interface LocalCharacter {
   id: string;
   user_id: string;
   name: string;
+  icon?: string;
+  level?: string;
+  server_name?: string;
+  role_id?: string;
+  server?: string;
   created_at: string;
   updated_at: string;
 }
@@ -114,18 +119,38 @@ export async function getCharactersByUserIdLocal(userId: string): Promise<Charac
     id: c.id,
     name: c.name,
     user_id: c.user_id,
+    icon: c.icon,
+    level: c.level,
+    server_name: c.server_name,
+    role_id: c.role_id,
+    server: c.server,
     created_at: new Date(c.created_at),
     updated_at: new Date(c.updated_at)
   } as Character));
 }
 
-export async function createCharacterLocal(userId: string, name: string): Promise<Character> {
+export async function createCharacterLocal(
+  userId: string, 
+  name: string, 
+  options?: {
+    icon?: string;
+    level?: string;
+    server_name?: string;
+    role_id?: string;
+    server?: string;
+  }
+): Promise<Character> {
   const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
   const now = new Date().toISOString();
   const newCharacter: LocalCharacter = {
     id: generateId(),
     user_id: userId,
     name,
+    icon: options?.icon,
+    level: options?.level,
+    server_name: options?.server_name,
+    role_id: options?.role_id,
+    server: options?.server,
     created_at: now,
     updated_at: now
   };
@@ -135,6 +160,11 @@ export async function createCharacterLocal(userId: string, name: string): Promis
     id: newCharacter.id,
     name: newCharacter.name,
     user_id: newCharacter.user_id,
+    icon: newCharacter.icon,
+    level: newCharacter.level,
+    server_name: newCharacter.server_name,
+    role_id: newCharacter.role_id,
+    server: newCharacter.server,
     created_at: new Date(newCharacter.created_at),
     updated_at: new Date(newCharacter.updated_at)
   } as Character;
