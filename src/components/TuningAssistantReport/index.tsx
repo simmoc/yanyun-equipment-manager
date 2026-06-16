@@ -207,19 +207,6 @@ function analyzeEquipments(
 
   // 处理心法数据
   let xinfa: CapturedXinfa = { active: [], passive: [] };
-  if (rolePanelData?.['combat_plan.xinfa_info']) {
-    const xinfaData = rolePanelData['combat_plan.xinfa_info'];
-    if (Array.isArray(xinfaData)) {
-      // 数组格式
-      xinfa.active = xinfaData.map(id => ({ id: typeof id === 'object' ? id.id : id, name: '' }));
-    } else if (xinfaData && typeof xinfaData === 'object') {
-      // 对象格式
-      const xinfaList = Object.values(xinfaData);
-      xinfa.active = xinfaList.map(xinfa => ({ id: typeof xinfa === 'object' ? xinfa.id : xinfa, name: '' }));
-    }
-  } else if (capturedData?.character_info?.xinfa) {
-    xinfa = capturedData.character_info.xinfa;
-  }
 
   const attributeStats: Record<string, { count: number; totalValue: number }> = {};
   const equipmentAnalysis: EquipmentAnalysis[] = [];
@@ -230,13 +217,13 @@ function analyzeEquipments(
     let dingyinName: string | null = null;
 
     if ('base_affixes' in equip) {
-      (equip.base_affixes || []).forEach(attr => {
+      equip.base_affixes?.forEach(attr => {
         // 安全检查：确保 attr 和 attr.name 存在
         if (!attr || !attr.name) return;
         
-        const isGood = GOOD_AFFIXES.some(good => attr.name?.includes(good));
-        const isBad = BAD_AFFIXES.some(bad => attr.name?.includes(bad));
-        const isDingyin = DINGYIN_AFFIXES.some(ding => attr.name?.includes(ding));
+        const isGood = GOOD_AFFIXES.some(good => attr.name.includes(good));
+        const isBad = BAD_AFFIXES.some(bad => attr.name.includes(bad));
+        const isDingyin = DINGYIN_AFFIXES.some(ding => attr.name.includes(ding));
 
         const rate = attr.rate || 0;
         const quality = attr.quality || 3;
@@ -272,13 +259,13 @@ function analyzeEquipments(
         });
       });
     } else {
-      (equip.attributes || []).forEach(attr => {
+      equip.attributes?.forEach(attr => {
         // 安全检查：确保 attr 和 attr.name 存在
         if (!attr || !attr.name) return;
         
-        const isGood = GOOD_AFFIXES.some(good => attr.name?.includes(good));
-        const isBad = BAD_AFFIXES.some(bad => attr.name?.includes(bad));
-        const isDingyin = DINGYIN_AFFIXES.some(ding => attr.name?.includes(ding));
+        const isGood = GOOD_AFFIXES.some(good => attr.name.includes(good));
+        const isBad = BAD_AFFIXES.some(bad => attr.name.includes(bad));
+        const isDingyin = DINGYIN_AFFIXES.some(ding => attr.name.includes(ding));
 
         const rate = attr.rate || 0;
         const quality = attr.quality || 3;
@@ -345,9 +332,9 @@ function analyzeEquipments(
   let acrProb: number, criProb: number, bashProb: number;
   
   if (rolePanelData) {
-    acrProb = rolePanelData['REAL_ACR_PROB'] || rolePanelData['ACR_PROB'] || 0;
-    criProb = rolePanelData['REAL_CRI_PROB'] || rolePanelData['CRI_PROB'] || 0;
-    bashProb = rolePanelData['REAL_BASH_PROB'] || rolePanelData['BASH_PROB'] || 0;
+    acrProb = Number(rolePanelData['REAL_ACR_PROB'] || rolePanelData['ACR_PROB'] || 0);
+    criProb = Number(rolePanelData['REAL_CRI_PROB'] || rolePanelData['CRI_PROB'] || 0);
+    bashProb = Number(rolePanelData['REAL_BASH_PROB'] || rolePanelData['BASH_PROB'] || 0);
   } else {
     acrProb = attributeStats['精准率']?.totalValue || 0;
     criProb = attributeStats['会心率']?.totalValue || 0;
@@ -527,9 +514,9 @@ function analyzeEquipments(
 }
 
 function analyzeDingyin(equipmentAnalysis: EquipmentAnalysis[]) {
-  const dingyinCount = (equipmentAnalysis || []).reduce((sum, equip) => {
-    const dingyinAttrs = (equip?.affixes || []).filter(affix => 
-      affix?.name?.includes('增伤') || affix?.name?.includes('武学') || affix?.name?.includes('首领')
+  const dingyinCount = equipmentAnalysis.reduce((sum, equip) => {
+    const dingyinAttrs = equip.affixes.filter(affix => 
+      affix.name.includes('增伤') || affix.name.includes('武学') || affix.name.includes('首领')
     );
     return sum + dingyinAttrs.length;
   }, 0);
@@ -588,10 +575,10 @@ function generateRecommendations(
   }
 
   const lowRateAffixes: { name: string; rate: number; equip: string }[] = [];
-  (equipmentAnalysis || []).forEach(equip => {
-    (equip?.affixes || []).forEach(affix => {
-      if (affix?.isGood && affix?.rate < 90) {
-        lowRateAffixes.push({ name: affix?.name || '', rate: affix?.rate || 0, equip: equip?.name || '' });
+  equipmentAnalysis.forEach(equip => {
+    equip.affixes.forEach(affix => {
+      if (affix.isGood && affix.rate < 90) {
+        lowRateAffixes.push({ name: affix.name, rate: affix.rate, equip: equip.name });
       }
     });
   });
@@ -661,26 +648,26 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="p-3 bg-gray-700/50 rounded-lg">
             <div className="text-gray-400 text-sm">角色名</div>
-            <div className="text-white font-bold">{data.characterInfo?.name || '未知'}</div>
+            <div className="text-white font-bold">{data.characterInfo.name}</div>
           </div>
           <div className="p-3 bg-gray-700/50 rounded-lg">
             <div className="text-gray-400 text-sm">等级</div>
-            <div className="text-white font-bold">{data.characterInfo?.level || 0}</div>
+            <div className="text-white font-bold">{data.characterInfo.level}</div>
           </div>
           <div className="p-3 bg-gray-700/50 rounded-lg">
             <div className="text-gray-400 text-sm">门派</div>
-            <div className="text-white font-bold">{data.characterInfo?.school || '未知'}</div>
+            <div className="text-white font-bold">{data.characterInfo.school}</div>
           </div>
         </div>
         
-        {(data.realAttrs || []).length > 0 && (
+        {data.realAttrs.length > 0 && (
           <div>
             <div className="text-gray-400 text-sm mb-2">基础属性</div>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-              {(data.realAttrs || []).map((attr, index) => (
+              {data.realAttrs.map((attr, index) => (
                 <div key={index} className="p-2 bg-gray-700/30 rounded text-center">
-                  <div className="text-gray-500 text-xs">{attr?.name || ''}</div>
-                  <div className="text-gray-200 font-medium">{(attr?.value || 0).toFixed(1)}</div>
+                  <div className="text-gray-500 text-xs">{attr.name}</div>
+                  <div className="text-gray-200 font-medium">{attr.value.toFixed(1)}</div>
                 </div>
               ))}
             </div>
@@ -692,34 +679,34 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">📊 属性概览</h2>
         
         <div className="grid grid-cols-3 gap-4 mb-4">
-          {(data.rates || []).map((rate, index) => (
-            <div key={index} className={`p-3 rounded-lg ${rate?.isHealthy ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+          {data.rates.map((rate, index) => (
+            <div key={index} className={`p-3 rounded-lg ${rate.isHealthy ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-sm">{rate?.name || ''}</span>
-                {rate?.target && <span className="text-gray-500 text-xs">目标:{rate.target}%</span>}
+                <span className="text-gray-400 text-sm">{rate.name}</span>
+                {rate.target && <span className="text-gray-500 text-xs">目标:{rate.target}%</span>}
               </div>
-              <div className={`text-xl font-bold ${rate?.isHealthy ? 'text-green-400' : 'text-red-400'}`}>
-                {(rate?.value || 0).toFixed(1)}{rate?.unit || ''}
+              <div className={`text-xl font-bold ${rate.isHealthy ? 'text-green-400' : 'text-red-400'}`}>
+                {rate.value.toFixed(1)}{rate.unit}
               </div>
               <div className="w-full bg-gray-700 rounded-full h-1 mt-2">
                 <div 
-                  className={`h-1 rounded-full transition-all ${rate?.isHealthy ? 'bg-green-400' : 'bg-red-400'}`}
-                  style={{ width: `${Math.min(rate?.value || 0, 100)}%` }}
+                  className={`h-1 rounded-full transition-all ${rate.isHealthy ? 'bg-green-400' : 'bg-red-400'}`}
+                  style={{ width: `${Math.min(rate.value, 100)}%` }}
                 />
               </div>
             </div>
           ))}
         </div>
 
-        {(data.attacks || []).map((attack, index) => (
-          <div key={index} className={`p-3 rounded-lg ${attack?.isHealthy ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
+        {data.attacks.map((attack, index) => (
+          <div key={index} className={`p-3 rounded-lg ${attack.isHealthy ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400 text-sm">{attack?.name || ''}</span>
-              <span className={`font-bold ${attack?.isHealthy ? 'text-green-400' : 'text-yellow-400'}`}>
-                {attack?.current || ''}
+              <span className="text-gray-400 text-sm">{attack.name}</span>
+              <span className={`font-bold ${attack.isHealthy ? 'text-green-400' : 'text-yellow-400'}`}>
+                {attack.current}
               </span>
             </div>
-            {attack?.note && <div className="text-xs text-gray-500 mt-1">{attack.note}</div>}
+            {attack.note && <div className="text-xs text-gray-500 mt-1">{attack.note}</div>}
           </div>
         ))}
       </div>
@@ -728,23 +715,23 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">⚔️ 定音分析</h2>
         
         <div className="grid grid-cols-2 gap-4">
-          <div className={`p-3 rounded-lg ${getStatusBg(data.weaponDingyin?.status || '注意')}`}>
+          <div className={`p-3 rounded-lg ${getStatusBg(data.weaponDingyin.status)}`}>
             <div className="text-gray-400 text-sm">武器定音</div>
-            <div className={`font-bold ${getStatusColor(data.weaponDingyin?.status || '注意')}`}>
-              {data.weaponDingyin?.text?.split('\n')[0] || '待分析'}
+            <div className={`font-bold ${getStatusColor(data.weaponDingyin.status)}`}>
+              {data.weaponDingyin.text.split('\n')[0]}
             </div>
-            {data.weaponDingyin?.text?.includes('\n') && (
+            {data.weaponDingyin.text.includes('\n') && (
               <div className="text-xs text-gray-500 mt-1">
                 {data.weaponDingyin.text.split('\n')[1]}
               </div>
             )}
           </div>
-          <div className={`p-3 rounded-lg ${getStatusBg(data.armorDingyin?.status || '注意')}`}>
+          <div className={`p-3 rounded-lg ${getStatusBg(data.armorDingyin.status)}`}>
             <div className="text-gray-400 text-sm">防具定音</div>
-            <div className={`font-bold ${getStatusColor(data.armorDingyin?.status || '注意')}`}>
-              {data.armorDingyin?.text?.split('\n')[0] || '待分析'}
+            <div className={`font-bold ${getStatusColor(data.armorDingyin.status)}`}>
+              {data.armorDingyin.text.split('\n')[0]}
             </div>
-            {data.armorDingyin?.text?.includes('\n') && (
+            {data.armorDingyin.text.includes('\n') && (
               <div className="text-xs text-gray-500 mt-1">
                 {data.armorDingyin.text.split('\n')[1]}
               </div>
@@ -757,13 +744,13 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">✨ 神力词条</h2>
         
         <div className="grid grid-cols-3 gap-4">
-          {(data.divineAffixes || []).map((affix, index) => (
-            <div key={index} className={`p-3 rounded-lg ${affix?.hasIt ? 'bg-purple-500/10' : 'bg-gray-700/50'}`}>
-              <div className="text-gray-400 text-sm">{affix?.name || '未知'}</div>
-              <div className={`font-bold ${affix?.hasIt ? 'text-purple-400' : 'text-gray-500'}`}>
-                {affix?.hasIt ? `${affix.count}条` : '未拥有'}
+          {data.divineAffixes.map((affix, index) => (
+            <div key={index} className={`p-3 rounded-lg ${affix.hasIt ? 'bg-purple-500/10' : 'bg-gray-700/50'}`}>
+              <div className="text-gray-400 text-sm">{affix.name}</div>
+              <div className={`font-bold ${affix.hasIt ? 'text-purple-400' : 'text-gray-500'}`}>
+                {affix.hasIt ? `${affix.count}条` : '未拥有'}
               </div>
-              {affix?.totalValue && affix.totalValue > 0 && (
+              {affix.totalValue && affix.totalValue > 0 && (
                 <div className="text-xs text-gray-500 mt-1">
                   总加成: {(affix.totalValue * 100).toFixed(1)}%
                 </div>
@@ -777,22 +764,22 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">📈 词条统计</h2>
         
         <div className="space-y-2">
-          {(data.equipmentAffixes || []).map((affix, index) => (
+          {data.equipmentAffixes.map((affix, index) => (
             <div key={index} className="flex items-center justify-between p-2 bg-gray-700/50 rounded-lg">
               <div>
-                <span className="text-gray-300 text-sm">{affix?.name || '未知'}</span>
-                <span className="text-gray-500 text-xs ml-2">x{affix?.currentCount || 0}</span>
-                {affix?.totalValue > 0 && (
+                <span className="text-gray-300 text-sm">{affix.name}</span>
+                <span className="text-gray-500 text-xs ml-2">x{affix.currentCount}</span>
+                {affix.totalValue > 0 && (
                   <span className="text-gray-500 text-xs ml-2">
-                    ({typeof affix.totalValue === 'number' && affix.totalValue < 1 ? (affix.totalValue * 100).toFixed(1) : Math.round(affix.totalValue || 0)})
+                    ({typeof affix.totalValue === 'number' && affix.totalValue < 1 ? (affix.totalValue * 100).toFixed(1) : Math.round(affix.totalValue)})
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-xs ${getStatusBg(affix?.status || '注意')} ${getStatusColor(affix?.status || '注意')}`}>
-                  {affix?.status || '待分析'}
+                <span className={`px-2 py-0.5 rounded text-xs ${getStatusBg(affix.status)} ${getStatusColor(affix.status)}`}>
+                  {affix.status}
                 </span>
-                <span className="text-gray-500 text-xs">{affix?.note || ''}</span>
+                <span className="text-gray-500 text-xs">{affix.note}</span>
               </div>
             </div>
           ))}
@@ -803,34 +790,34 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">🛡️ 装备分析</h2>
         
         <div className="space-y-3 max-h-80 overflow-y-auto">
-          {(data.equipmentAnalysis || []).map((equip, index) => (
+          {data.equipmentAnalysis.map((equip, index) => (
             <div key={index} className="p-3 bg-gray-700/50 rounded-lg">
               <div className="flex justify-between items-center mb-2">
                 <div>
-                  <span className="text-gray-200 font-medium">{equip?.name || '未知'}</span>
-                  <span className="text-gray-500 text-xs ml-2">{equip?.slot || ''}</span>
-                  {equip?.suit && <span className="text-amber-400 text-xs ml-2">{equip.suit}</span>}
-                  {equip?.retoned > 0 && <span className="text-blue-400 text-xs ml-2">重锻{equip.retoned}</span>}
+                  <span className="text-gray-200 font-medium">{equip.name}</span>
+                  <span className="text-gray-500 text-xs ml-2">{equip.slot}</span>
+                  {equip.suit && <span className="text-amber-400 text-xs ml-2">{equip.suit}</span>}
+                  {equip.retoned > 0 && <span className="text-blue-400 text-xs ml-2">重锻{equip.retoned}</span>}
                 </div>
-                <span className={`text-sm font-bold ${(equip?.score || 0) >= 85 ? 'text-green-400' : (equip?.score || 0) >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {Math.round(equip?.score || 0)}分
+                <span className={`text-sm font-bold ${equip.score >= 85 ? 'text-green-400' : equip.score >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {Math.round(equip.score)}分
                 </span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {(equip?.affixes || []).slice(0, 4).map((affix, i) => (
+                {equip.affixes.slice(0, 4).map((affix, i) => (
                   <span 
                     key={i}
-                    className={`px-2 py-0.5 rounded text-xs ${affix?.isGood ? 'bg-green-500/20 text-green-400' : 'bg-gray-600/50 text-gray-400'}`}
-                    title={`${affix?.name || ''}: ${affix?.value || 0} (${(affix?.rate || 0).toFixed(1)}%)`}
+                    className={`px-2 py-0.5 rounded text-xs ${affix.isGood ? 'bg-green-500/20 text-green-400' : 'bg-gray-600/50 text-gray-400'}`}
+                    title={`${affix.name}: ${affix.value} (${affix.rate.toFixed(1)}%)`}
                   >
-                    {affix?.name || ''}
-                    <span className={`ml-1 ${getQualityColor(affix?.quality || 1)}`}>
-                      L{affix?.quality || 1}
+                    {affix.name}
+                    <span className={`ml-1 ${getQualityColor(affix.quality)}`}>
+                      L{affix.quality}
                     </span>
                   </span>
                 ))}
               </div>
-              {equip?.dingyin && (
+              {equip.dingyin && (
                 <div className="text-xs text-purple-400 mt-1">
                   定音: {equip.dingyin}
                 </div>
@@ -844,46 +831,46 @@ function TuningReportView({ data }: { data: TuningReportData }) {
         <h2 className="text-lg font-semibold text-gray-200 mb-4">📚 心法配置</h2>
         
         <div className="space-y-3">
-          {(data.xinfaAnalysis?.active || []).length > 0 && (
+          {data.xinfaAnalysis.active.length > 0 && (
             <div>
               <div className="text-gray-400 text-sm mb-2">主动心法</div>
               <div className="flex flex-wrap gap-2">
-                {(data.xinfaAnalysis.active || []).map((xinfa, index) => (
+                {data.xinfaAnalysis.active.map((xinfa, index) => (
                   <span key={index} className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded">
-                    {xinfa?.name || `心法${xinfa?.id || index}`}
+                    {xinfa.name || `心法${xinfa.id}`}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          {(data.xinfaAnalysis?.passive || []).length > 0 && (
+          {data.xinfaAnalysis.passive.length > 0 && (
             <div>
               <div className="text-gray-400 text-sm mb-2">被动心法</div>
               <div className="flex flex-wrap gap-2">
-                {(data.xinfaAnalysis.passive || []).map((xinfa, index) => (
+                {data.xinfaAnalysis.passive.map((xinfa, index) => (
                   <span key={index} className="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs rounded">
-                    {xinfa?.name || `心法${xinfa?.id || index}`}
+                    {xinfa.name || `心法${xinfa.id}`}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          {((data.xinfaAnalysis?.active || []).length === 0 && (data.xinfaAnalysis?.passive || []).length === 0) && (
+          {data.xinfaAnalysis.active.length === 0 && data.xinfaAnalysis.passive.length === 0 && (
             <div className="text-gray-500 text-sm">未配置心法</div>
           )}
-          <div className="text-xs text-gray-500 mt-2">{data.xinfaAnalysis?.note || ''}</div>
+          <div className="text-xs text-gray-500 mt-2">{data.xinfaAnalysis.note}</div>
         </div>
       </div>
 
       <div className="bg-gray-800 rounded-lg p-4">
         <h2 className="text-lg font-semibold text-gray-200 mb-4">💡 调律建议</h2>
         
-        {(data.recommendations || []).length > 0 ? (
+        {data.recommendations.length > 0 ? (
           <div className="space-y-3">
-            {(data.recommendations || []).map((rec, index) => (
+            {data.recommendations.map((rec, index) => (
               <div key={index} className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                <div className="font-semibold text-blue-400 text-sm">{rec?.title || ''}</div>
-                <div className="text-gray-300 text-xs mt-1 whitespace-pre-line">{rec?.content || ''}</div>
+                <div className="font-semibold text-blue-400 text-sm">{rec.title}</div>
+                <div className="text-gray-300 text-xs mt-1 whitespace-pre-line">{rec.content}</div>
               </div>
             ))}
           </div>
@@ -893,8 +880,8 @@ function TuningReportView({ data }: { data: TuningReportData }) {
       </div>
 
       <div className="bg-gray-800 rounded-lg p-4">
-        <div className={`text-center py-2 ${(data.summary || '').includes('很棒') ? 'text-green-400' : 'text-yellow-400'}`}>
-          <strong>{data.summary || '分析完成'}</strong>
+        <div className={`text-center py-2 ${data.summary.includes('很棒') ? 'text-green-400' : 'text-yellow-400'}`}>
+          <strong>{data.summary}</strong>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import type { EquipmentSlot, SuitType, XinfaData } from '@/types';
 
 export function useConfigData() {
   const [configData, setConfigData] = useState<{
-    equip_data: Record<string, { id: number; name: string; rarity: number; level: number }>;
+    equip_data: Record<string, { id: number; name: string; rarity: number; level: number; shortImage: string }>;
     suffix_data: Record<string, { name: string; short: string; icon: string }>;
     affix_data: Record<string, { name: string; need_add: string; unit: string }>;
     slot_data?: Record<string, { id: number; name: string; image: string }>;
