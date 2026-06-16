@@ -113,7 +113,7 @@ export default function Home() {
     if (!selectedCharacter) return;
     try {
       const ds = getDataSource();
-      // await ds.deleteCharacter(selectedCharacter.id);
+      await ds.deleteCharacter(selectedCharacter.id);
     } catch (error) {
       console.error('删除角色失败:', error);
     }
@@ -123,14 +123,14 @@ export default function Home() {
     if (!selectedCharacter || !newEquipmentData.name.trim()) return;
     try {
       const ds = getDataSource();
-      // await ds.createEquipment(selectedCharacter.id, {
-      //   slot: newEquipmentData.slot,
-      //   name: newEquipmentData.name,
-      //   level: newEquipmentData.level,
-      //   attributes: newEquipmentData.attributes,
-      //   is_wearing: newEquipmentData.isWearing,
-      //   suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
-      // });
+      await ds.createEquipment(selectedCharacter.id, {
+        slot: newEquipmentData.slot,
+        name: newEquipmentData.name,
+        level: newEquipmentData.level,
+        attributes: newEquipmentData.attributes,
+        is_wearing: newEquipmentData.isWearing,
+        suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
+      });
       setShowNewEquipmentModal(false);
       setNewEquipmentData({
         slot: EQUIPMENT_SLOTS[0],
@@ -148,7 +148,7 @@ export default function Home() {
   const handleDeleteEquipment = async (equipmentId: string) => {
     try {
       const ds = getDataSource();
-      // await ds.deleteEquipment(equipmentId);
+      await ds.deleteEquipment(equipmentId);
     } catch (error) {
       console.error('删除装备失败:', error);
     }
@@ -157,7 +157,7 @@ export default function Home() {
   const handleToggleWearing = async (equipment: Equipment) => {
     try {
       const ds = getDataSource();
-      // await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
+      await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
     } catch (error) {
       console.error('更新装备失败:', error);
     }
@@ -180,14 +180,14 @@ export default function Home() {
     if (!editingEquipment) return;
     try {
       const ds = getDataSource();
-      // await ds.updateEquipment(editingEquipment.id, {
-      //   slot: editEquipmentData.slot,
-      //   name: editEquipmentData.name,
-      //   level: editEquipmentData.level,
-      //   attributes: editEquipmentData.attributes,
-      //   is_wearing: editEquipmentData.isWearing,
-      //   suit_type: (editEquipmentData.suitType || undefined) as SuitType | undefined
-      // });
+      await ds.updateEquipment(editingEquipment.id, {
+        slot: editEquipmentData.slot,
+        name: editEquipmentData.name,
+        level: editEquipmentData.level,
+        attributes: editEquipmentData.attributes,
+        is_wearing: editEquipmentData.isWearing,
+        suit_type: (editEquipmentData.suitType || undefined) as SuitType | undefined
+      });
       setShowEditEquipmentModal(false);
       setEditingEquipment(null);
     } catch (error) {
@@ -276,14 +276,14 @@ export default function Home() {
       const result = await response.json();
       
       if (result.success) {
-        // // 创建角色
-        // const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
-        //   icon: gameRole.icon,
-        //   level: gameRole.level,
-        //   server_name: gameRole.serverName,
-        //   role_id: gameRole.roleId,
-        //   server: gameRole.server
-        // });
+        // 创建角色
+        const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
+          icon: gameRole.icon,
+          level: gameRole.level,
+          server_name: gameRole.serverName,
+          role_id: gameRole.roleId,
+          server: gameRole.server
+        });
         
         // 获取角色面板数据
         let rolePanelData: any = null;
@@ -310,7 +310,7 @@ export default function Home() {
         }
         
         // 保存认证信息（区分 roleInfo 和 rolePanelData）
-        localStorage.setItem(`auth_${gameRole.roleId}`, JSON.stringify({
+        localStorage.setItem(`auth_${character.id}`, JSON.stringify({
           roleId: gameRole.roleId,
           server: gameRole.server,
           cookies: authCredentials.cookies,
@@ -321,9 +321,9 @@ export default function Home() {
         }));
         
         // 导入装备
-        const importedCount = await importRoleInfoEquipments(gameRole.roleId, result.data.roleInfo);
+        const importedCount = await importRoleInfoEquipments(character.id, result.data.roleInfo);
         
-        // setSelectedCharacter(character);
+        setSelectedCharacter(character);
         setSelectedGameRoleId('');
         await fetchCharacters();
         await fetchPlansAndEquipments();
@@ -412,14 +412,14 @@ export default function Home() {
           });
         }
         
-        // await ds.createEquipment(characterId, {
-        //   slot: mappedSlot,
-        //   name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
-        //   level: equip.level || 0,
-        //   attributes,
-        //   is_wearing: true,
-        //   suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
-        // });
+        await ds.createEquipment(characterId, {
+          slot: mappedSlot,
+          name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
+          level: equip.level || 0,
+          attributes,
+          is_wearing: true,
+          suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
+        });
         
         count++;
       } catch (error) {
