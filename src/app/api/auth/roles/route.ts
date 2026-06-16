@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch('https://inf.ds.163.com/v1/web/role-list-query/getBindList', {
       method: 'POST',
+      cache: 'no-store', 
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 app/df_client dfVersion/100124',
         'Content-Type': 'application/json',

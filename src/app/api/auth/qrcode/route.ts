@@ -6,6 +6,7 @@ export async function GET() {
   try {
     const response = await fetch('https://q.reg.163.com/qrcode/getqrcodeid?product=cc_team', {
       method: 'GET',
+      cache: 'no-store', 
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
         'Accept': 'application/json',

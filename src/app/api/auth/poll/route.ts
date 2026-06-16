@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       `https://q.reg.163.com/qrcode/qrcodeauth?product=cc_team&client=pc&newQrCode=1&uuid=${uuid}`,
       {
         method: 'GET',
+        cache: 'no-store', 
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
         }
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
       
       const cookieResponse = await fetch(setCookieUrl, {
         method: 'GET',
+        cache: 'no-store', 
         redirect: 'manual',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
 
       const tokenResponse = await fetch('https://api.cc.163.com/v1/mixteamauth/cookie2LoginToken', {
         method: 'GET',
+        cache: 'no-store', 
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
           'Cookie': `NTES_YD_SESS=${ntesYdSess}`
@@ -97,6 +100,7 @@ export async function GET(request: NextRequest) {
 
       const loginResponse = await fetch('https://inf.ds.163.com/v1/web/base/login', {
         method: 'POST',
+        cache: 'no-store', 
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 app/df_client dfVersion/100124',
           'Content-Type': 'application/json',

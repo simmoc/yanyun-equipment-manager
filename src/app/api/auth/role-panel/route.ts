@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch('https://datamsapi.ds.163.com/v1/h72roletool/roleInfo', {
       method: 'POST',
+       cache: 'no-store', 
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36  app/df_client dfVersion/100124',
         'Content-Type': 'application/json;charset=UTF-8',
