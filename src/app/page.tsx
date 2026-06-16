@@ -816,8 +816,9 @@ export default function Home() {
       <div className="text-lg font-medium mb-2 text-orange-300">心法</div>
       <div className="grid grid-cols-4 gap-2">
         {Object.entries(xinfaSource).map(([id, xinfa]) => {
-          const xinfaConfig = getXinfaInfo(id);
-          const rank = Number(xinfa?.rank) || 0;
+          const xinfaConfig = getXinfaInfo(Number(id) || 0);
+          const xinfaObj = xinfa as any;
+          const rank = Number(xinfaObj?.rank) || 0;
           
          // 兜底：没有配置就不渲染
           if (!xinfaConfig) return null;
