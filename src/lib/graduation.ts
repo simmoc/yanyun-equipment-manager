@@ -18,6 +18,7 @@ const FLOW_WEIGHTS: Record<string, Record<string, number>> = {
   '牵丝霖': { '攻击力': 1.0, '暴击率': 1.2, '暴击伤害': 1.1, '穿透': 1.0 },
 };
 
+
 // 各部位毕业阈值
 const SLOT_THRESHOLDS: Record<EquipmentSlot, number> = {
   '主武器': 85,

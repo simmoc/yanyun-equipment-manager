@@ -139,7 +139,6 @@ export function useAppData() {
         }
         hasXinfaData = true;
       }
-      console.log(hasXinfaData)
 
       // 优先级3：如果本地没有完整的数据，或者没有心法数据，且有凭证，请求 API
       if ((!panelData || !hasXinfaData) && character.role_id && character.server && authCredentials) {
