@@ -3,7 +3,8 @@ import { checkDatabaseConnection } from '@/lib/db';
 
 export async function GET() {
   try {
-    const dbAvailable = await checkDatabaseConnection();
+    // const dbAvailable = await checkDatabaseConnection();
+    const dbAvailable = false;
     return NextResponse.json({
       success: true,
       data: {
