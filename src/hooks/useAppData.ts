@@ -17,8 +17,9 @@ export function useAppData() {
   const [availableGameRoles, setAvailableGameRoles] = useState<GameRole[]>([]);
   const [rolePanelData, setRolePanelData] = useState<RolePanelData | null>(null);
   const [isLoadingRolePanel, setIsLoadingRolePanel] = useState(false);
+  const [pendingRoleSelector, setPendingRoleSelector] = useState(false);
 
-  const fetchCharacters = async () => {
+  const fetchCharacters = async (): Promise<Character[]> => {
     try {
       const ds = getDataSource();
       const chars = await ds.getCharacters();
@@ -28,8 +29,10 @@ export function useAppData() {
         const savedChar = savedId ? chars.find(c => c.id === savedId) : null;
         setSelectedCharacter(savedChar || chars[0]);
       }
+      return chars;
     } catch (error) {
       console.error('获取角色失败:', error);
+      return [];
     }
   };
 
@@ -250,17 +253,37 @@ export function useAppData() {
         const statusData = await statusResponse.json();
         const dbAvailable = statusData.data?.databaseAvailable;
 
+        let chars: Character[] = [];
         if (dbAvailable) {
           initDataSource(false);
-          await fetchCharacters();
+          chars = await fetchCharacters();
         } else {
           await initLocalDatabase();
           initDataSource(true);
           setIsLocal(true);
-          await fetchCharacters();
+          chars = await fetchCharacters();
         }
 
-        loadAuthCredentials();
+        const creds = loadAuthCredentials();
+        if (creds && chars.length === 0) {
+          try {
+            const response = await fetch('/api/auth/roles', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                cookies: creds.cookies,
+                loginToken: creds.loginToken
+              })
+            });
+            const data = await response.json();
+            if (data.success) {
+              setAvailableGameRoles(data.data.roles);
+            }
+          } catch (error) {
+            console.error('获取角色列表失败，使用缓存的角色列表:', error);
+          }
+          setPendingRoleSelector(true);
+        }
       } catch (error) {
         console.error('初始化失败:', error);
         await initLocalDatabase();
@@ -301,6 +324,8 @@ export function useAppData() {
     rolePanelData,
     setRolePanelData,
     isLoadingRolePanel,
+    pendingRoleSelector,
+    setPendingRoleSelector,
     fetchCharacters,
     fetchPlansAndEquipments,
     saveAuthCredentials,
