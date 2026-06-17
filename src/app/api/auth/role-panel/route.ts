@@ -113,9 +113,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('获取角色面板信息失败:', error);
+    const errMsg = error instanceof Error ? error.message : '获取角色面板信息失败';
+    const needReauth = /登录|过期|离开太久|刷新页面|token.*失败|未登录/.test(errMsg);
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : '获取角色面板信息失败'
-    }, { status: 500 });
+      error: errMsg,
+      needReauth
+    }, { status: needReauth ? 401 : 500 });
   }
 }

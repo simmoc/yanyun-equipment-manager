@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
 import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
@@ -39,6 +39,7 @@ export default function Home() {
     fetchPlansAndEquipments,
     initLocalAuth,
     saveAuthCredentials,
+    clearAuthCredentials,
     fetchRolePanel
   } = useAppData();
 
@@ -86,6 +87,8 @@ export default function Home() {
   const [selectedGameRoleId, setSelectedGameRoleId] = useState<string>('');
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
 
+  const prevAuthRef = useRef(authCredentials);
+
   useEffect(() => {
     if (selectedCharacter && plans.length > 0) {
       fetchGraduation();
@@ -97,6 +100,13 @@ export default function Home() {
       fetchRolePanel(selectedCharacter);
     }
   }, [selectedCharacter]);
+
+  useEffect(() => {
+    if (prevAuthRef.current && !authCredentials) {
+      setShowQRCodeAuth(true);
+    }
+    prevAuthRef.current = authCredentials;
+  }, [authCredentials]);
 
   const fetchGraduation = async () => {
     if (!selectedCharacter) return;
@@ -115,7 +125,7 @@ export default function Home() {
     if (!selectedCharacter) return;
     try {
       const ds = getDataSource();
-      // await ds.deleteCharacter(selectedCharacter.id);
+      await ds.deleteCharacter(selectedCharacter.id);
     } catch (error) {
       console.error('删除角色失败:', error);
     }
@@ -125,14 +135,14 @@ export default function Home() {
     if (!selectedCharacter || !newEquipmentData.name.trim()) return;
     try {
       const ds = getDataSource();
-      // await ds.createEquipment(selectedCharacter.id, {
-      //   slot: newEquipmentData.slot,
-      //   name: newEquipmentData.name,
-      //   level: newEquipmentData.level,
-      //   attributes: newEquipmentData.attributes,
-      //   is_wearing: newEquipmentData.isWearing,
-      //   suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
-      // });
+      await ds.createEquipment(selectedCharacter.id, {
+        slot: newEquipmentData.slot,
+        name: newEquipmentData.name,
+        level: newEquipmentData.level,
+        attributes: newEquipmentData.attributes,
+        is_wearing: newEquipmentData.isWearing,
+        suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
+      });
       setShowNewEquipmentModal(false);
       setNewEquipmentData({
         slot: EQUIPMENT_SLOTS[0],
@@ -150,7 +160,7 @@ export default function Home() {
   const handleDeleteEquipment = async (equipmentId: string) => {
     try {
       const ds = getDataSource();
-      // await ds.deleteEquipment(equipmentId);
+      await ds.deleteEquipment(equipmentId);
     } catch (error) {
       console.error('删除装备失败:', error);
     }
@@ -159,7 +169,7 @@ export default function Home() {
   const handleToggleWearing = async (equipment: Equipment) => {
     try {
       const ds = getDataSource();
-      // await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
+      await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
     } catch (error) {
       console.error('更新装备失败:', error);
     }
@@ -182,14 +192,14 @@ export default function Home() {
     if (!editingEquipment) return;
     try {
       const ds = getDataSource();
-      // await ds.updateEquipment(editingEquipment.id, {
-      //   slot: editEquipmentData.slot,
-      //   name: editEquipmentData.name,
-      //   level: editEquipmentData.level,
-      //   attributes: editEquipmentData.attributes,
-      //   is_wearing: editEquipmentData.isWearing,
-      //   suit_type: (editEquipmentData.suitType || undefined) as SuitType | undefined
-      // });
+      await ds.updateEquipment(editingEquipment.id, {
+        slot: editEquipmentData.slot,
+        name: editEquipmentData.name,
+        level: editEquipmentData.level,
+        attributes: editEquipmentData.attributes,
+        is_wearing: editEquipmentData.isWearing,
+        suit_type: (editEquipmentData.suitType || undefined) as SuitType | undefined
+      });
       setShowEditEquipmentModal(false);
       setEditingEquipment(null);
     } catch (error) {
@@ -284,6 +294,13 @@ export default function Home() {
       
       const result = await response.json();
       
+      if (result.needReauth) {
+        clearAuthCredentials();
+        setShowQRCodeAuth(true);
+        alert(`登录已过期：${result.error}，请重新扫码登录`);
+        return;
+      }
+      
       if (result.success) {
         // 创建角色
         const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
@@ -311,6 +328,12 @@ export default function Home() {
           });
           
           const panelResult = await panelResponse.json();
+          if (panelResult.needReauth) {
+            clearAuthCredentials();
+            setShowQRCodeAuth(true);
+            alert(`登录已过期：${panelResult.error}，请重新扫码登录`);
+            return;
+          }
           if (panelResult.success && panelResult.data) {
             rolePanelData = panelResult.data;
           }
@@ -342,11 +365,19 @@ export default function Home() {
           : '角色绑定成功！';
         alert(message);
       } else {
-        alert('获取角色信息失败');
+        if (result.needReauth) {
+          clearAuthCredentials();
+          setShowQRCodeAuth(true);
+          alert(`登录已过期：${result.error}，请重新扫码登录`);
+          return;
+        }
+        alert(result.error || '获取角色信息失败');
       }
     } catch (error) {
       console.error('创建角色失败:', error);
-      alert('创建角色失败');
+      clearAuthCredentials();
+      setShowQRCodeAuth(true);
+      alert('登录已过期，请重新扫码登录');
     } finally {
       setIsCreatingCharacter(false);
     }
