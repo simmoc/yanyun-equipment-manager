@@ -14,7 +14,8 @@ import {
   AboutModal,
   EquipmentCard,
   TuningAssistantReport,
-  QRCodeAuthModal
+  QRCodeAuthModal,
+  SelectRoleModal
 } from '@/components';
 
 export default function Home() {
@@ -60,6 +61,7 @@ export default function Home() {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showTuningAssistant, setShowTuningAssistant] = useState(false);
   const [showQRCodeAuth, setShowQRCodeAuth] = useState(false);
+  const [showSelectRoleModal, setShowSelectRoleModal] = useState(false);
   const [tuningCapturedData, setTuningCapturedData] = useState<any>(null);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [newEquipmentData, setNewEquipmentData] = useState({
@@ -222,10 +224,17 @@ export default function Home() {
     }
   };
 
-  // 扫码登录成功，保存凭证
+  // 扫码登录成功，保存凭证并弹出角色选择
   const handleQRCodeAuthSuccess = (cookies: any, loginToken: string, roles: GameRole[]) => {
     saveAuthCredentials(cookies, loginToken, roles);
     setShowQRCodeAuth(false);
+    setShowSelectRoleModal(true);
+  };
+
+  // 弹窗中选择角色
+  const handleModalRoleSelect = (gameRoleId: string) => {
+    setShowSelectRoleModal(false);
+    handleGameRoleSelect(gameRoleId);
   };
 
   // 处理游戏角色选择
@@ -276,14 +285,14 @@ export default function Home() {
       const result = await response.json();
       
       if (result.success) {
-        // // 创建角色
-        // const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
-        //   icon: gameRole.icon,
-        //   level: gameRole.level,
-        //   server_name: gameRole.serverName,
-        //   role_id: gameRole.roleId,
-        //   server: gameRole.server
-        // });
+        // 创建角色
+        const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
+          icon: gameRole.icon,
+          level: gameRole.level,
+          server_name: gameRole.serverName,
+          role_id: gameRole.roleId,
+          server: gameRole.server
+        });
         
         // 获取角色面板数据
         let rolePanelData: any = null;
@@ -310,7 +319,7 @@ export default function Home() {
         }
         
         // 保存认证信息（区分 roleInfo 和 rolePanelData）
-        localStorage.setItem(`auth_${gameRole.roleId}`, JSON.stringify({
+        localStorage.setItem(`auth_${character.id}`, JSON.stringify({
           roleId: gameRole.roleId,
           server: gameRole.server,
           cookies: authCredentials.cookies,
@@ -321,9 +330,9 @@ export default function Home() {
         }));
         
         // 导入装备
-        const importedCount = await importRoleInfoEquipments(gameRole.roleId, result.data.roleInfo);
+        const importedCount = await importRoleInfoEquipments(character.id, result.data.roleInfo);
         
-        // setSelectedCharacter(character);
+        setSelectedCharacter(character);
         setSelectedGameRoleId('');
         await fetchCharacters();
         await fetchPlansAndEquipments();
@@ -412,14 +421,14 @@ export default function Home() {
           });
         }
         
-        // await ds.createEquipment(characterId, {
-        //   slot: mappedSlot,
-        //   name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
-        //   level: equip.level || 0,
-        //   attributes,
-        //   is_wearing: true,
-        //   suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
-        // });
+        await ds.createEquipment(characterId, {
+          slot: mappedSlot,
+          name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
+          level: equip.level || 0,
+          attributes,
+          is_wearing: true,
+          suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
+        });
         
         count++;
       } catch (error) {
@@ -757,7 +766,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
               {filteredEquipments
                 .sort((a, b) => {
                   const slotOrder = ['剑', '枪', '冠胄', '胸甲', '弓', '环', '佩', '胫甲', '腕甲', '射决'];
@@ -1053,6 +1062,15 @@ export default function Home() {
         isOpen={showQRCodeAuth}
         onClose={() => setShowQRCodeAuth(false)}
         onSuccess={handleQRCodeAuthSuccess}
+      />
+
+      <SelectRoleModal
+        isOpen={showSelectRoleModal}
+        onClose={() => setShowSelectRoleModal(false)}
+        roles={availableGameRoles}
+        characters={characters}
+        onSelect={handleModalRoleSelect}
+        isLoading={isCreatingCharacter}
       />
 
       {showTuningAssistant && (

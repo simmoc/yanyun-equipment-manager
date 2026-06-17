@@ -29,7 +29,9 @@ export function useAppData() {
       const chars = await ds.getCharacters('', fingerprint);
       setCharacters(chars);
       if (chars.length > 0 && !selectedCharacter) {
-        setSelectedCharacter(chars[0]);
+        const savedId = localStorage.getItem('selected_character_id');
+        const savedChar = savedId ? chars.find(c => c.id === savedId) : null;
+        setSelectedCharacter(savedChar || chars[0]);
       }
     } catch (error) {
       console.error('获取角色失败:', error);
@@ -223,6 +225,15 @@ export function useAppData() {
 
   useEffect(() => {
     fetchPlansAndEquipments();
+  }, [selectedCharacter]);
+
+  // 持久化当前选中的角色 ID
+  useEffect(() => {
+    if (selectedCharacter) {
+      localStorage.setItem('selected_character_id', selectedCharacter.id);
+    } else {
+      localStorage.removeItem('selected_character_id');
+    }
   }, [selectedCharacter]);
 
   return {
