@@ -169,6 +169,19 @@ export interface ExportData {
   equipments: Equipment[];
 }
 
+// 分享的角色快照数据
+export interface SharedCharacterData {
+  character: {
+    name: string;
+    icon?: string;
+    level?: string;
+    server_name?: string;
+  };
+  equipments: Equipment[];
+  rolePanelData?: Record<string, any> | null;
+  createdAt: string;
+}
+
 // 常量定义
 export const FLOW_TYPES: FlowType[] = [
   '鸣金虹', '鸣金影', '破竹尘', '破竹风', '破竹鸢',

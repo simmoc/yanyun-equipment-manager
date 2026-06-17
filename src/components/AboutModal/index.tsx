@@ -11,7 +11,7 @@ export function AboutModal({
       <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-md w-full mx-4">
         <h2 className="text-xl font-bold mb-4">关于</h2>
         <div className="space-y-3 text-gray-400">
-          <p>这是一个用于管理《永劫无间》装备毕业情况的工具。</p>
+          <p>这是一个用于管理《燕云十六声》装备毕业情况的工具。</p>
           <p>你可以：</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>创建角色和方案</li>

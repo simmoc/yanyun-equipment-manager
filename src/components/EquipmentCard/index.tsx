@@ -133,32 +133,32 @@ const formatValue = (value: number, attrName: string): string => {
 };
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-emerald-500/50 transition group">
-      <div className="p-3 border-b border-gray-700">
-        <div className="flex gap-3">
-          <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-700 flex items-center justify-center flex-none">
+    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition">
+      <div className="p-2.5 border-b border-gray-700">
+        <div className="flex gap-2">
+          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-700 flex items-center justify-center flex-none">
             {equipImage ? (
               <img src={equipImage} alt={equipment.name} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-gray-500 text-xl">⚔️</span>
+              <span className="text-gray-500 text-base">⚔️</span>
             )}
           </div>
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <h3 className="text-gray-200 font-semibold text-sm truncate">{equipment.name}</h3>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <span className="text-gray-500 text-xs whitespace-nowrap">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-gray-200 font-medium text-[13px] truncate leading-tight">{equipment.name}</h3>
+            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+              <span className="text-gray-500 text-[11px]">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
               {equipment.level > 0 && (
-                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded whitespace-nowrap">
+                <span className="px-1 py-[1px] bg-blue-500/20 text-blue-400 text-[10px] rounded">
                   Lv.{equipment.level}
                 </span>
               )}
               {equipment.suit_type && (
-                <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded whitespace-nowrap">
+                <span className="px-1 py-[1px] bg-amber-500/20 text-amber-400 text-[10px] rounded leading-none">
                   {suitInfo?.short || equipment.suit_type}
                 </span>
               )}
               {equipment.is_wearing && (
-                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded whitespace-nowrap">
+                <span className="px-1 py-[1px] bg-emerald-500/20 text-emerald-400 text-[10px] rounded">
                   已装备
                 </span>
               )}
@@ -167,24 +167,35 @@ const formatValue = (value: number, attrName: string): string => {
         </div>
       </div>
 
-      <div className="p-3">
-        {affixAttributes.length > 0 ? (
-          <div className="space-y-1">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide">词条</div>
+      <div className="px-2.5 py-2 space-y-1.5">
+        {builtInAttributes.length > 0 && (
+          <div className="space-y-[2px]">
+            <div className="text-[9px] text-gray-500">基础属性</div>
+            {builtInAttributes.map((attr, index) => (
+              <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
+                <span className="text-gray-300 text-[11px]">{attr.name}</span>
+                <span className="text-green-400 text-[11px] font-medium">{formatValue(attr.value, attr.name)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {affixAttributes.length > 0 && (
+          <div className="space-y-[2px]">
+            <div className="text-[9px] text-gray-500">词条</div>
             {affixAttributes.map((attr, index) => {
               const quality = attr.quality || 3;
               const rate = attr.rate || 0;
               const isMax = attr.is_main;
               return (
-                <div key={index} className="flex items-center justify-between px-2 py-1.5 bg-gray-700/30 rounded">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-300 text-xs">{attr.name}</span>
+                <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-gray-300 text-[11px] truncate">{attr.name}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400 text-xs font-medium">{formatValue(attr.value, attr.name)}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-green-400 text-[11px] font-medium">{formatValue(attr.value, attr.name)}</span>
                     {rate > 0 && (
-                      <span className={`text-[10px] ${isMax ? 'text-yellow-400' : 'text-gray-400'}`}>
-                        {rate.toFixed(1)}%{isMax ? ' 满' : ''}
+                      <span className={`text-[7px] leading-none ${isMax ? 'text-yellow-400' : 'text-gray-500'}`}>
+                        {rate.toFixed(1)}%
                       </span>
                     )}
                   </div>
@@ -192,41 +203,12 @@ const formatValue = (value: number, attrName: string): string => {
               );
             })}
           </div>
-        ) : (
-          <div className="text-gray-500 text-xs text-center py-2">
+        )}
+        {builtInAttributes.length === 0 && affixAttributes.length === 0 && (
+          <div className="text-gray-500 text-[11px] text-center py-1.5">
             无词条信息
           </div>
         )}
-      </div>
-
-      <div className="px-3 pb-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
-        {equipment.is_wearing ? (
-          <button
-            onClick={onUnwear}
-            className="flex-1 py-1.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition text-xs"
-          >
-            卸下
-          </button>
-        ) : (
-          <button
-            onClick={onWear}
-            className="flex-1 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 transition text-xs"
-          >
-            装备
-          </button>
-        )}
-        <button
-          onClick={onEdit}
-          className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-xs"
-        >
-          编辑
-        </button>
-        <button
-          onClick={onDelete}
-          className="px-3 py-1.5 bg-gray-700 text-gray-400 rounded-lg hover:bg-red-500/30 hover:text-red-400 transition text-xs"
-        >
-          删除
-        </button>
       </div>
     </div>
   );

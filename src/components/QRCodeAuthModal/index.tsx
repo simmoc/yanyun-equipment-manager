@@ -22,14 +22,19 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
   const [uuid, setUuid] = useState('');
   const [status, setStatus] = useState<'waiting' | 'confirming' | 'scanned'>('waiting');
   const [error, setError] = useState('');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const hasInitRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
-      if (step === 'qrcode') {
+      if (!hasInitRef.current) {
+        hasInitRef.current = true;
         checkAuthCache();
       }
     } else {
+      hasInitRef.current = false;
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -37,6 +42,7 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
       setQrCodeUrl('');
       setUuid('');
       setStatus('waiting');
+      setStep('qrcode');
     }
 
     return () => {
@@ -44,7 +50,7 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [isOpen, step]);
+  }, [isOpen]);
 
   const checkAuthCache = async () => {
     try {
@@ -63,9 +69,11 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
           }
         }
       }
+      setStep('qrcode');
       initQRCode();
     } catch (error) {
       console.error('检查缓存失败:', error);
+      setStep('qrcode');
       initQRCode();
     }
   };
@@ -95,6 +103,17 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
     };
     localStorage.setItem('qrcode_auth_cache', JSON.stringify(cache));
   };
+
+  useEffect(() => {
+    if (!qrCodeUrl || !canvasRef.current) return;
+    import('qrcode').then(QRCode => {
+      QRCode.toCanvas(canvasRef.current, qrCodeUrl, {
+        width: 200,
+        margin: 1,
+        color: { dark: '#000000', light: '#ffffff' }
+      }).catch(console.error);
+    });
+  }, [qrCodeUrl]);
 
   const initQRCode = async () => {
     try {
@@ -182,9 +201,8 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
   };
 
   const handleRetry = () => {
-    setStep('qrcode');
-    setStatus('waiting');
     setError('');
+    initQRCode();
   };
 
   if (!isOpen) return null;
@@ -224,11 +242,7 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
               </div>
               {qrCodeUrl && (
                 <div className="bg-white p-4 rounded-lg inline-block">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`}
-                    alt="扫码授权"
-                    className="w-48 h-48"
-                  />
+                  <canvas ref={canvasRef} width={200} height={200} className="w-48 h-48" />
                 </div>
               )}
               {status === 'confirming' && (
