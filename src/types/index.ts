@@ -22,14 +22,6 @@ export type SuitType =
   | '玉斗' | '飞隼' | '时雨' | '断岳' | '烟柳' 
   | '浣花' | '燕归' | '连星' | '撼天' | '裁云';
 
-// 用户
-export interface User {
-  id: string;
-  fingerprint: string;
-  created_at: Date;
-  last_login: Date;
-}
-
 // 游戏角色信息（来自网易大神）
 export interface GameRole {
   uid: string;
@@ -54,7 +46,6 @@ export interface AuthCredentials {
 // 角色
 export interface Character {
   id: string;
-  user_id: string;
   name: string;
   icon?: string;
   level?: string;

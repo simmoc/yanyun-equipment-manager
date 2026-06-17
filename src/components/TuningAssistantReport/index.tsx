@@ -97,7 +97,9 @@ function analyzeEquipments(
   const attributeStats: Record<string, { count: number; totalValue: number }> = {};
   const equipmentAnalysis: EquipmentAnalysis[] = [];
 
-  dbEquipments.forEach(equip => {
+  const filteredEquipments = dbEquipments.filter(e => e.slot !== '弓' && e.slot !== '射决');
+
+  filteredEquipments.forEach(equip => {
     const affixes: EquipmentAnalysis['affixes'] = [];
     let totalScore = 0;
     let dingyinName: string | null = null;

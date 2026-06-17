@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Character, Plan, Equipment, EquipmentSlot, FlowType, VersionType, FlowCategory, BowType, SuitType } from '@/types';
 
 const STORAGE_KEYS = {
-  USERS: 'yanyun_users',
   CHARACTERS: 'yanyun_characters',
   PLANS: 'yanyun_plans',
   EQUIPMENTS: 'yanyun_equipments',
@@ -24,16 +23,8 @@ function setItem<T>(key: string, data: T[]): void {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
-export interface LocalUser {
-  id: string;
-  fingerprint: string;
-  created_at: string;
-  last_login: string;
-}
-
 export interface LocalCharacter {
   id: string;
-  user_id: string;
   name: string;
   icon?: string;
   level?: string;
@@ -73,53 +64,23 @@ export interface LocalEquipment {
 
 export async function initLocalDatabase() {
   if (typeof window === 'undefined') return { success: true };
-  const users = getItem<LocalUser>(STORAGE_KEYS.USERS);
   const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
   const plans = getItem<LocalPlan>(STORAGE_KEYS.PLANS);
   const equipments = getItem<LocalEquipment>(STORAGE_KEYS.EQUIPMENTS);
-  if (users.length === 0) setItem(STORAGE_KEYS.USERS, []);
   if (characters.length === 0) setItem(STORAGE_KEYS.CHARACTERS, []);
   if (plans.length === 0) setItem(STORAGE_KEYS.PLANS, []);
   if (equipments.length === 0) setItem(STORAGE_KEYS.EQUIPMENTS, []);
   return { success: true };
 }
 
-export async function getUserByFingerprintLocal(fingerprint: string): Promise<LocalUser | null> {
-  const users = getItem<LocalUser>(STORAGE_KEYS.USERS);
-  return users.find(u => u.fingerprint === fingerprint) || null;
-}
-
-export async function createUserLocal(fingerprint: string): Promise<LocalUser> {
-  const users = getItem<LocalUser>(STORAGE_KEYS.USERS);
-  const newUser: LocalUser = {
-    id: generateId(),
-    fingerprint,
-    created_at: new Date().toISOString(),
-    last_login: new Date().toISOString()
-  };
-  users.push(newUser);
-  setItem(STORAGE_KEYS.USERS, users);
-  return newUser;
-}
-
-export async function updateUserLoginLocal(fingerprint: string): Promise<void> {
-  const users = getItem<LocalUser>(STORAGE_KEYS.USERS);
-  const userIndex = users.findIndex(u => u.fingerprint === fingerprint);
-  if (userIndex !== -1) {
-    users[userIndex].last_login = new Date().toISOString();
-    setItem(STORAGE_KEYS.USERS, users);
-  }
-}
-
-export async function getCharactersByUserIdLocal(userId: string): Promise<Character[]> {
+export async function getCharactersLocal(): Promise<Character[]> {
   const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
-  const filtered = characters.filter(c => c.user_id === userId).sort((a, b) =>
+  const sorted = [...characters].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
-  return filtered.map(c => ({
+  return sorted.map(c => ({
     id: c.id,
     name: c.name,
-    user_id: c.user_id,
     icon: c.icon,
     level: c.level,
     server_name: c.server_name,
@@ -131,7 +92,6 @@ export async function getCharactersByUserIdLocal(userId: string): Promise<Charac
 }
 
 export async function createCharacterLocal(
-  userId: string, 
   name: string, 
   options?: {
     icon?: string;
@@ -145,7 +105,6 @@ export async function createCharacterLocal(
   const now = new Date().toISOString();
   const newCharacter: LocalCharacter = {
     id: generateId(),
-    user_id: userId,
     name,
     icon: options?.icon,
     level: options?.level,
@@ -160,7 +119,6 @@ export async function createCharacterLocal(
   return {
     id: newCharacter.id,
     name: newCharacter.name,
-    user_id: newCharacter.user_id,
     icon: newCharacter.icon,
     level: newCharacter.level,
     server_name: newCharacter.server_name,
@@ -183,6 +141,17 @@ export async function deleteCharacterLocal(characterId: string): Promise<void> {
   let equipments = getItem<LocalEquipment>(STORAGE_KEYS.EQUIPMENTS);
   equipments = equipments.filter(e => e.character_id !== characterId);
   setItem(STORAGE_KEYS.EQUIPMENTS, equipments);
+}
+
+export async function getCharacterByRoleIdLocal(roleId: string): Promise<Character | null> {
+  const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
+  const c = characters.find(ch => ch.role_id === roleId);
+  if (!c) return null;
+  return {
+    id: c.id, name: c.name, icon: c.icon, level: c.level,
+    server_name: c.server_name, role_id: c.role_id, server: c.server,
+    created_at: new Date(c.created_at), updated_at: new Date(c.updated_at)
+  } as Character;
 }
 
 export async function getPlansByCharacterIdLocal(characterId: string): Promise<Plan[]> {
@@ -391,13 +360,11 @@ export async function deleteEquipmentLocal(equipmentId: string): Promise<void> {
 }
 
 export function exportLocalData(): {
-  users: LocalUser[];
   characters: LocalCharacter[];
   plans: LocalPlan[];
   equipments: LocalEquipment[];
 } {
   return {
-    users: getItem<LocalUser>(STORAGE_KEYS.USERS),
     characters: getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS),
     plans: getItem<LocalPlan>(STORAGE_KEYS.PLANS),
     equipments: getItem<LocalEquipment>(STORAGE_KEYS.EQUIPMENTS)
@@ -405,19 +372,16 @@ export function exportLocalData(): {
 }
 
 export function importLocalData(data: {
-  users?: LocalUser[];
   characters?: LocalCharacter[];
   plans?: LocalPlan[];
   equipments?: LocalEquipment[];
 }): void {
-  if (data.users) setItem(STORAGE_KEYS.USERS, data.users);
   if (data.characters) setItem(STORAGE_KEYS.CHARACTERS, data.characters);
   if (data.plans) setItem(STORAGE_KEYS.PLANS, data.plans);
   if (data.equipments) setItem(STORAGE_KEYS.EQUIPMENTS, data.equipments);
 }
 
 export function clearLocalData(): void {
-  localStorage.removeItem(STORAGE_KEYS.USERS);
   localStorage.removeItem(STORAGE_KEYS.CHARACTERS);
   localStorage.removeItem(STORAGE_KEYS.PLANS);
   localStorage.removeItem(STORAGE_KEYS.EQUIPMENTS);
