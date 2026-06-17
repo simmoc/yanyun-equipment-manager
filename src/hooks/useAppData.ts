@@ -72,6 +72,13 @@ export function useAppData() {
     localStorage.setItem('auth_credentials', JSON.stringify(credentials));
   };
 
+  // 清除登录凭证（cookie过期时调用）
+  const clearAuthCredentials = () => {
+    setAuthCredentials(null);
+    setAvailableGameRoles([]);
+    localStorage.removeItem('auth_credentials');
+  };
+
   // 加载保存的登录凭证
   const loadAuthCredentials = () => {
     try {
@@ -158,6 +165,11 @@ export function useAppData() {
         });
 
         const apiData = await response.json();
+        if (apiData.needReauth) {
+          console.error('登录已过期，清除凭证');
+          clearAuthCredentials();
+          return;
+        }
         if (apiData.success && apiData.data) {
           panelData = apiData.data;
           
@@ -256,6 +268,7 @@ export function useAppData() {
     fetchPlansAndEquipments,
     initLocalAuth,
     saveAuthCredentials,
+    clearAuthCredentials,
     fetchRolePanel
   };
 }

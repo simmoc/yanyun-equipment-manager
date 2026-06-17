@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   USERS: 'yanyun_users',
   CHARACTERS: 'yanyun_characters',
   PLANS: 'yanyun_plans',
-  EQUIPMENTS: 'yanyun_equipments'
+  EQUIPMENTS: 'yanyun_equipments',
+  SHARES: 'yanyun_shares'
 };
 
 function generateId(): string {
@@ -420,4 +421,30 @@ export function clearLocalData(): void {
   localStorage.removeItem(STORAGE_KEYS.CHARACTERS);
   localStorage.removeItem(STORAGE_KEYS.PLANS);
   localStorage.removeItem(STORAGE_KEYS.EQUIPMENTS);
+  localStorage.removeItem(STORAGE_KEYS.SHARES);
+}
+
+// 分享存储
+export interface LocalShare {
+  id: string;
+  snapshot: object;
+  created_at: string;
+}
+
+export async function createShareLocal(snapshot: object): Promise<{ id: string }> {
+  const shares = getItem<LocalShare>(STORAGE_KEYS.SHARES);
+  const id = generateId();
+  const share: LocalShare = {
+    id,
+    snapshot,
+    created_at: new Date().toISOString()
+  };
+  shares.push(share);
+  setItem(STORAGE_KEYS.SHARES, shares);
+  return { id };
+}
+
+export async function getShareLocal(shareId: string): Promise<LocalShare | null> {
+  const shares = getItem<LocalShare>(STORAGE_KEYS.SHARES);
+  return shares.find(s => s.id === shareId) || null;
 }

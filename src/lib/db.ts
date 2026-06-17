@@ -80,6 +80,17 @@ export async function initDatabase() {
       );
     `;
 
+    // 创建分享表
+    await sql`
+      CREATE TABLE IF NOT EXISTS shared_characters (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        snapshot JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 days')
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_shared_characters_id ON shared_characters(id);`;
+
     // 创建索引
     await sql`CREATE INDEX IF NOT EXISTS idx_characters_user ON characters(user_id);`;
     await sql`CREATE INDEX IF NOT EXISTS idx_plans_character ON plans(character_id);`;
@@ -257,4 +268,21 @@ export async function updateEquipment(
 
 export async function deleteEquipment(equipmentId: string) {
   await sql`DELETE FROM equipments WHERE id = ${equipmentId}`;
+}
+
+// 分享相关操作
+export async function createShare(snapshot: object) {
+  const result = await sql`
+    INSERT INTO shared_characters (snapshot)
+    VALUES (${JSON.stringify(snapshot)})
+    RETURNING id, created_at
+  `;
+  return result.rows[0];
+}
+
+export async function getShare(shareId: string) {
+  const result = await sql`
+    SELECT * FROM shared_characters WHERE id = ${shareId} AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+  `;
+  return result.rows[0] || null;
 }

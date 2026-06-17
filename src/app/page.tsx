@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
 import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
@@ -15,7 +15,8 @@ import {
   EquipmentCard,
   TuningAssistantReport,
   QRCodeAuthModal,
-  SelectRoleModal
+  SelectRoleModal,
+  Toast
 } from '@/components';
 
 export default function Home() {
@@ -39,6 +40,7 @@ export default function Home() {
     fetchPlansAndEquipments,
     initLocalAuth,
     saveAuthCredentials,
+    clearAuthCredentials,
     fetchRolePanel
   } = useAppData();
 
@@ -62,7 +64,7 @@ export default function Home() {
   const [showTuningAssistant, setShowTuningAssistant] = useState(false);
   const [showQRCodeAuth, setShowQRCodeAuth] = useState(false);
   const [showSelectRoleModal, setShowSelectRoleModal] = useState(false);
-  const [tuningCapturedData, setTuningCapturedData] = useState<any>(null);
+  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [newEquipmentData, setNewEquipmentData] = useState({
     slot: EQUIPMENT_SLOTS[0],
@@ -86,6 +88,8 @@ export default function Home() {
   const [selectedGameRoleId, setSelectedGameRoleId] = useState<string>('');
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
 
+  const prevAuthRef = useRef(authCredentials);
+
   useEffect(() => {
     if (selectedCharacter && plans.length > 0) {
       fetchGraduation();
@@ -97,6 +101,13 @@ export default function Home() {
       fetchRolePanel(selectedCharacter);
     }
   }, [selectedCharacter]);
+
+  useEffect(() => {
+    if (prevAuthRef.current && !authCredentials) {
+      setShowQRCodeAuth(true);
+    }
+    prevAuthRef.current = authCredentials;
+  }, [authCredentials]);
 
   const fetchGraduation = async () => {
     if (!selectedCharacter) return;
@@ -197,6 +208,31 @@ export default function Home() {
     }
   };
 
+  const handleShareCharacter = async () => {
+    if (!selectedCharacter) return;
+    try {
+      const ds = getDataSource();
+      const snapshot = {
+        character: {
+          name: selectedCharacter.name,
+          icon: selectedCharacter.icon,
+          level: selectedCharacter.level,
+          server_name: selectedCharacter.server_name,
+        },
+        equipments: equipments,
+        rolePanelData: rolePanelData,
+        createdAt: new Date().toISOString()
+      };
+      const { id: shareId } = await ds.createShare(snapshot);
+      const shareUrl = `${window.location.origin}/share/${shareId}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setToast({ message: '分享链接已复制到剪贴板', type: 'success' });
+    } catch (error) {
+      console.error('创建分享失败:', error);
+      setToast({ message: '创建分享失败', type: 'error' });
+    }
+  };
+
   const handleExport = async () => {
     try {
       if (isLocal) {
@@ -284,6 +320,13 @@ export default function Home() {
       
       const result = await response.json();
       
+      if (result.needReauth) {
+        clearAuthCredentials();
+        setShowQRCodeAuth(true);
+        setToast({ message: `登录已过期：${result.error}，请重新扫码登录`, type: 'error' });
+        return;
+      }
+      
       if (result.success) {
         // 创建角色
         const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
@@ -311,6 +354,12 @@ export default function Home() {
           });
           
           const panelResult = await panelResponse.json();
+          if (panelResult.needReauth) {
+            clearAuthCredentials();
+            setShowQRCodeAuth(true);
+            setToast({ message: `登录已过期：${panelResult.error}，请重新扫码登录`, type: 'error' });
+            return;
+          }
           if (panelResult.success && panelResult.data) {
             rolePanelData = panelResult.data;
           }
@@ -337,16 +386,26 @@ export default function Home() {
         await fetchCharacters();
         await fetchPlansAndEquipments();
         
-        const message = importedCount > 0 
-          ? `角色绑定成功！已自动导入 ${importedCount} 件装备`
-          : '角色绑定成功！';
-        alert(message);
+        setToast({
+          message: importedCount > 0 
+            ? `角色绑定成功！已自动导入 ${importedCount} 件装备`
+            : '角色绑定成功！',
+          type: 'success'
+        });
       } else {
-        alert('获取角色信息失败');
+        if (result.needReauth) {
+          clearAuthCredentials();
+          setShowQRCodeAuth(true);
+          setToast({ message: `登录已过期：${result.error}，请重新扫码登录`, type: 'error' });
+          return;
+        }
+        setToast({ message: result.error || '获取角色信息失败', type: 'error' });
       }
     } catch (error) {
       console.error('创建角色失败:', error);
-      alert('创建角色失败');
+      clearAuthCredentials();
+      setShowQRCodeAuth(true);
+      setToast({ message: '登录已过期，请重新扫码登录', type: 'error' });
     } finally {
       setIsCreatingCharacter(false);
     }
@@ -389,9 +448,31 @@ export default function Home() {
       'MIN_M_ATK': '最小内功攻击',
       'MAX_M_ATK': '最大内功攻击',
       'DEF': '防御',
+      'W_DEF': '外功防御',
       'HP': '气血',
+      'HP_MAX': '气血上限',
+      'ARCHER_DAMAGE': '穿透伤害',
+      'ARCHER_WEAKPOINT_DAMAGE': '穿透弱点伤害',
       'PVP_DEF': 'PVP防御',
-      'PVE_DEF': 'PVE防御'
+      'PVE_DEF': 'PVE防御',
+      'CRI_PROB': '会心率',
+      'ACR_PROB': '精准率',
+      'BASH_PROB': '会意率',
+      'PVP_CRI_PROB': 'PVP会心率',
+      'PVP_ACR_PROB': 'PVP精准率',
+      'PVP_BASH_PROB': 'PVP会意率',
+      'STR': '力道',
+      'BAS': '气韵',
+      'CON': '根骨',
+      'CRI': '身法',
+      'FIRE_ATK': '火攻击',
+      'ICE_ATK': '冰攻击',
+      'THUNDER_ATK': '雷攻击',
+      'WIND_ATK': '风攻击',
+      'FIRE_DEF': '火抗',
+      'ICE_DEF': '冰抗',
+      'THUNDER_DEF': '雷抗',
+      'WIND_DEF': '风抗'
     };
     
     for (const equip of equips) {
@@ -667,26 +748,19 @@ export default function Home() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2 ml-auto">
-                  {/* 已创建角色选择下拉 */}
-                  <select
-                    value={selectedCharacter?.id || ''}
-                    onChange={(e) => {
-                      const char = characters.find(c => c.id === e.target.value);
-                      setSelectedCharacter(char || null);
-                      setSelectedPlan(null);
-                    }}
-                    className="min-w-[200px]"
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
+                  {/* 分享角色按钮 */}
+                  <button
+                    onClick={handleShareCharacter}
+                    className="px-3 sm:px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition text-sm sm:text-base"
                   >
-                    {characters.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    分享角色
+                  </button>
 
                   {/* 切换账号按钮 */}
                   <button
                     onClick={() => setShowQRCodeAuth(true)}
-                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
+                    className="px-3 sm:px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-sm sm:text-base"
                   >
                     切换账号
                   </button>
@@ -694,7 +768,7 @@ export default function Home() {
                   {/* 删除角色按钮 */}
                   <button
                     onClick={handleDeleteCharacter}
-                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition"
+                    className="px-3 sm:px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition text-sm sm:text-base"
                   >
                     删除角色
                   </button>
@@ -702,30 +776,17 @@ export default function Home() {
                   {/* 导出/导入按钮 */}
                   <button
                     onClick={() => setShowExportModal(true)}
-                    className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition"
+                    className="px-3 sm:px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-sm sm:text-base"
                   >
-                    导出/导入数据
+                    导出/导入
                   </button>
 
                   {/* 调号助手按钮 */}
                   <button
-                    onClick={async () => {
-                      try {
-                        const response = await fetch('/api/captured');
-                        const result = await response.json();
-                        if (result.success) {
-                          setTuningCapturedData(result.data);
-                        } else {
-                          setTuningCapturedData(null);
-                        }
-                      } catch (error) {
-                        setTuningCapturedData(null);
-                      }
-                      setShowTuningAssistant(true);
-                    }}
-                    className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition"
+                    onClick={() => setShowTuningAssistant(true)}
+                    className="px-3 sm:px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition text-sm sm:text-base"
                   >
-                    🤖 调号助手
+                    🤖 调号
                   </button>
                 </div>
               </>
@@ -737,7 +798,7 @@ export default function Home() {
       {selectedCharacter ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
               {['可用', '全部', '穿着'].map(filter => (
                 <button
                   key={filter}
@@ -748,22 +809,24 @@ export default function Home() {
                 </button>
               ))}
 
-              {EQUIPMENT_SLOTS.map(slot => (
-                <button
-                  key={slot}
-                  onClick={() => setSlotFilter(slot)}
-                  className={`tab-button ${slotFilter === slot ? 'active' : ''}`}
-                >
-                  {slot}
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                {EQUIPMENT_SLOTS.map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() => setSlotFilter(slot)}
+                    className={`tab-button ${slotFilter === slot ? 'active' : ''}`}
+                  >
+                    {slot}
+                  </button>
+                ))}
 
-              <button
-                onClick={() => setSlotFilter('全部')}
-                className={`tab-button ${slotFilter === '全部' ? 'active' : ''}`}
-              >
-                全部
-              </button>
+                <button
+                  onClick={() => setSlotFilter('全部')}
+                  className={`tab-button ${slotFilter === '全部' ? 'active' : ''}`}
+                >
+                  全部
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
@@ -790,25 +853,19 @@ export default function Home() {
                   />
                 ))}
 
-              <button
-                onClick={() => setShowNewEquipmentModal(true)}
-                className="equipment-card flex items-center justify-center text-green-400 hover:border-green-400"
-              >
-                <span className="text-xl">+</span>
-              </button>
             </div>
           </div>
 
-          <div className="bg-gray-800/50 p-4 rounded-lg">
-            <h2 className="text-xl font-bold mb-4 text-green-400">角色属性面板</h2>
+          <div className="bg-gray-800/50 p-3 rounded-lg">
+            <h2 className="text-base font-bold mb-2 text-green-400">角色属性</h2>
 
             {isLoadingRolePanel ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400 mr-3"></div>
-                <span className="text-gray-400">加载中...</span>
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-400 mr-2"></div>
+                <span className="text-gray-400 text-sm">加载中...</span>
               </div>
             ) : rolePanelData ? (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 
                 {/* 心法 */}
 {(() => {
@@ -821,181 +878,114 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-gray-700/50 p-3 rounded-lg">
-      <div className="text-lg font-medium mb-2 text-orange-300">心法</div>
-      <div className="grid grid-cols-4 gap-2">
+    <div className="bg-gray-700/50 p-2 rounded-lg">
+      <div className="text-sm font-medium mb-1.5 text-orange-300">心法</div>
+      <div className="grid grid-cols-4 gap-1.5">
         {Object.entries(xinfaSource).map(([id, xinfa]) => {
           const xinfaConfig = getXinfaInfo(Number(id) || 0);
           const xinfaObj = xinfa as any;
           const rank = Number(xinfaObj?.rank) || 0;
           
-         // 兜底：没有配置就不渲染
           if (!xinfaConfig) return null;
- return (
-    <div
-      key={id}
-      className="relative w-[72px] h-[88px] rounded-lg overflow-hidden shadow"
-      style={{
-        backgroundImage: `url(${xinfaConfig.bg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
-    >
-      {/* 半透明遮罩，让图标更清晰 */}
-      <div className="absolute inset-0 bg-black/30" />
-
-      {/* 心法图标 */}
-      <img
-        src={xinfaConfig.image1}
-        alt={xinfaConfig.name}
-        className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded"
-        onError={(e) => {
-          e.currentTarget.src = '/img/default_xinfa.png';
-        }}
-      />
-
-      {/* 心法名称 */}
-      <div className="absolute bottom-5 left-0 right-0 text-[10px] text-center text-white truncate px-1">
-        {xinfaConfig.name}
-      </div>
-
-      {/* 重数小圆点 */}
-      <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[3px]">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <span
-            key={i}
-            className={`w-1.5 h-1.5 rounded-full ${
-              i < rank
-                ? 'bg-yellow-400 shadow-yellow-400/80'
-                : 'bg-gray-500/70'
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
+          return (
+            <div
+              key={id}
+              className="relative w-[60px] h-[74px] rounded-lg overflow-hidden shadow"
+              style={{
+                backgroundImage: `url(${xinfaConfig.bg})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            >
+              <div className="absolute inset-0 bg-black/30" />
+              <img
+                src={xinfaConfig.image1}
+                alt={xinfaConfig.name}
+                className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-8 rounded"
+                onError={(e) => { e.currentTarget.src = '/img/default_xinfa.png'; }}
+              />
+              <div className="absolute bottom-4 left-0 right-0 text-[9px] text-center text-white truncate px-0.5">
+                {xinfaConfig.name}
+              </div>
+              <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[2px]">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <span key={i} className={`w-1 h-1 rounded-full ${i < rank ? 'bg-yellow-400' : 'bg-gray-500/70'}`} />
+                ))}
+              </div>
+            </div>
+          );
         })}
       </div>
     </div>
   );
 })()}
-           {/* 概率属性 */}
-                <div className="bg-gray-700/50 p-3 rounded-lg">
-                  <div className="text-lg font-medium mb-2 text-yellow-300">三率属性</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-sm text-gray-400">精准概率</div>
-                      <div className="font-medium">{rolePanelData.ACR_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">实际精准概率</div>
-                      <div className="font-medium text-green-300">{rolePanelData.REAL_ACR_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">会心概率</div>
-                      <div className="font-medium">{rolePanelData.CRI_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">实际会心概率</div>
-                      <div className="font-medium text-green-300">{rolePanelData.REAL_CRI_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">会意概率</div>
-                      <div className="font-medium">{rolePanelData.BASH_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">实际会意概率</div>
-                      <div className="font-medium text-green-300">{rolePanelData.REAL_BASH_PROB}%</div>
-                    </div>
-
-                    <div>
-                      <div className="text-sm text-gray-400">直接会心概率</div>
-                      <div className="font-medium">{rolePanelData.DIRECT_CRI_PROB}%</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">直接会意概率</div>
-                      <div className="font-medium">{rolePanelData.DIRECT_BASH_PROB}%</div>
-                    </div>
+                {/* 概率属性 */}
+                <div className="bg-gray-700/50 p-2 rounded-lg">
+                  <div className="text-sm font-medium mb-1 text-yellow-300">三率属性</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {[
+                      ['精准概率', rolePanelData.ACR_PROB, false],
+                      ['实际精准', rolePanelData.REAL_ACR_PROB, true],
+                      ['会心概率', rolePanelData.CRI_PROB, false],
+                      ['实际会心', rolePanelData.REAL_CRI_PROB, true],
+                      ['会意概率', rolePanelData.BASH_PROB, false],
+                      ['实际会意', rolePanelData.REAL_BASH_PROB, true],
+                      ['直接会心', rolePanelData.DIRECT_CRI_PROB, false],
+                      ['直接会意', rolePanelData.DIRECT_BASH_PROB, false],
+                    ].map(([label, value, highlight]) => (
+                      <div key={label as string} className="flex justify-between items-center gap-1">
+                        <span className="text-xs text-gray-400">{label as string}</span>
+                        <span className={`text-sm font-medium ${highlight ? 'text-green-300' : ''}`}>{value as string}%</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 {/* 攻击属性 */}
-                <div className="bg-gray-700/50 p-3 rounded-lg">
-                  <div className="text-lg font-medium mb-2 text-green-300">攻击属性</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-sm text-gray-400">最小外功攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_W_ATK}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大外功攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_W_ATK}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最小鸣金攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_A}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大鸣金攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_A}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最小牵丝攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_B}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大牵丝攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_B}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最小破竹攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_C}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大裂石攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_C}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最小破竹攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_PRO_ATK_E}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大破竹攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_PRO_ATK_E}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最小无相攻击</div>
-                      <div className="font-medium">{rolePanelData.MIN_ACTIVE_PRO_ATK}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">最大无相攻击</div>
-                      <div className="font-medium">{rolePanelData.MAX_ACTIVE_PRO_ATK}</div>
-                    </div>
+                <div className="bg-gray-700/50 p-2 rounded-lg">
+                  <div className="text-sm font-medium mb-1 text-green-300">攻击属性</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {[
+                      ['最小外功', rolePanelData.MIN_W_ATK],
+                      ['最大外功', rolePanelData.MAX_W_ATK],
+                      ['最小鸣金', rolePanelData.MIN_PRO_ATK_A],
+                      ['最大鸣金', rolePanelData.MAX_PRO_ATK_A],
+                      ['最小牵丝', rolePanelData.MIN_PRO_ATK_B],
+                      ['最大牵丝', rolePanelData.MAX_PRO_ATK_B],
+                      ['最小破竹', rolePanelData.MIN_PRO_ATK_C],
+                      ['最大裂石', rolePanelData.MAX_PRO_ATK_C],
+                      ['最小破竹', rolePanelData.MIN_PRO_ATK_E],
+                      ['最大破竹', rolePanelData.MAX_PRO_ATK_E],
+                      ['最小无相', rolePanelData.MIN_ACTIVE_PRO_ATK],
+                      ['最大无相', rolePanelData.MAX_ACTIVE_PRO_ATK],
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="flex justify-between items-center gap-1">
+                        <span className="text-xs text-gray-400">{label as string}</span>
+                        <span className="text-sm font-medium">{value as string}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* 防御属性 */}
-                <div className="bg-gray-700/50 p-3 rounded-lg">
-                  <div className="text-lg font-medium mb-2 text-blue-300">防御属性</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-sm text-gray-400">外攻防御</div>
-                      <div className="font-medium">{rolePanelData.W_DEF}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">气血最大值</div>
-                      <div className="font-medium">{rolePanelData.hpMax}</div>
-                    </div>
-                         
+                <div className="bg-gray-700/50 p-2 rounded-lg">
+                  <div className="text-sm font-medium mb-1 text-blue-300">防御属性</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {[
+                      ['外攻防御', rolePanelData.W_DEF],
+                      ['气血最大值', rolePanelData.hpMax],
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="flex justify-between items-center gap-1">
+                        <span className="text-xs text-gray-400">{label as string}</span>
+                        <span className="text-sm font-medium">{value as string}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-     
-
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">
-                <p>暂无角色面板数据</p>
-                <p className="text-sm mt-2">角色信息将在选择角色后自动获取</p>
+              <div className="text-center py-6 text-gray-400">
+                <p className="text-sm">暂无角色面板数据</p>
+                <p className="text-xs mt-1">选择角色后自动获取</p>
               </div>
             )}
           </div>
@@ -1073,6 +1063,13 @@ export default function Home() {
         isLoading={isCreatingCharacter}
       />
 
+      <Toast
+        isOpen={!!toast}
+        message={toast?.message || ''}
+        type={toast?.type}
+        onClose={() => setToast(null)}
+      />
+
       {showTuningAssistant && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 p-6 rounded-lg modal-enter max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1085,7 +1082,7 @@ export default function Home() {
                 关闭
               </button>
             </div>
-            <TuningAssistantReport equipments={equipments} plan={selectedPlan} capturedData={tuningCapturedData} rolePanelData={rolePanelData} />
+            <TuningAssistantReport equipments={equipments} plan={selectedPlan} rolePanelData={rolePanelData} />
           </div>
         </div>
       )}

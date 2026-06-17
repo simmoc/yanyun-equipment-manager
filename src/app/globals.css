@@ -93,9 +93,17 @@ body {
 
 /* 标签按钮 */
 .tab-button {
-  padding: 8px 16px;
+  padding: 6px 10px;
   border-radius: 6px;
+  font-size: 0.8125rem;
   transition: all 0.2s ease;
+}
+
+@media (min-width: 640px) {
+  .tab-button {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+  }
 }
 
 .tab-button.active {
@@ -146,4 +154,14 @@ input[type="number"]:focus {
 /* 复选框样式 */
 input[type="checkbox"] {
   accent-color: #4ade80;
+}
+
+/* toast 动画 */
+@keyframes slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
 }

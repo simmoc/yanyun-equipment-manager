@@ -24,6 +24,8 @@ interface DataSource {
 
   exportData(): Promise<object>;
   importData(data: object): Promise<void>;
+
+  createShare(snapshot: object): Promise<{ id: string }>;
 }
 
 class LocalDataSource implements DataSource {
@@ -100,6 +102,10 @@ class LocalDataSource implements DataSource {
 
   async importData(data: object): Promise<void> {
     localStore.importLocalData(data as Parameters<typeof localStore.importLocalData>[0]);
+  }
+
+  async createShare(snapshot: object): Promise<{ id: string }> {
+    return localStore.createShareLocal(snapshot);
   }
 }
 
@@ -238,7 +244,7 @@ class ApiDataSource implements DataSource {
   }
 
   async importData(data: object): Promise<void> {
-    const response = await fetch('/api/export', {
+    const result = await fetch('/api/export', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -246,8 +252,19 @@ class ApiDataSource implements DataSource {
       },
       body: JSON.stringify({ data })
     });
-    const result = await response.json();
-    if (!result.success) throw new Error('Failed to import data');
+    const resultData = await result.json();
+    if (!resultData.success) throw new Error('Failed to import data');
+  }
+
+  async createShare(snapshot: object): Promise<{ id: string }> {
+    const response = await fetch('/api/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshot })
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error('Failed to create share');
+    return { id: data.shareId };
   }
 }
 
