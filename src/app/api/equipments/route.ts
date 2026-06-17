@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
       name,
       level,
       attributes,
-      isWearing,
-      suitType
+      is_wearing: isWearing,
+      suit_type: suitType
     } = body;
     
     if (!characterId || !slot || !name) {
@@ -66,9 +66,9 @@ export async function POST(request: NextRequest) {
       characterId,
       slot,
       name,
-      level || 0,
+      level ?? 0,
       attributes || [],
-      isWearing || false,
+      isWearing ?? false,
       suitType
     );
     

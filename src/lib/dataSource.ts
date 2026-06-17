@@ -2,13 +2,9 @@ import type { Character, Plan, Equipment } from '@/types';
 import * as localStore from '@/lib/localStore';
 
 interface DataSource {
-  getCharacters(userId: string, fingerprint: string): Promise<Character[]>;
-  createCharacter(userId: string, fingerprint: string, name: string, options?: {
-    icon?: string;
-    level?: string;
-    server_name?: string;
-    role_id?: string;
-    server?: string;
+  getCharacters(): Promise<Character[]>;
+  createCharacter(name: string, options?: {
+    icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character>;
   deleteCharacter(characterId: string): Promise<void>;
 
@@ -29,18 +25,14 @@ interface DataSource {
 }
 
 class LocalDataSource implements DataSource {
-  async getCharacters(userId: string): Promise<Character[]> {
-    return localStore.getCharactersByUserIdLocal(userId);
+  async getCharacters(): Promise<Character[]> {
+    return localStore.getCharactersLocal();
   }
 
-  async createCharacter(userId: string, _fingerprint: string, name: string, options?: {
-    icon?: string;
-    level?: string;
-    server_name?: string;
-    role_id?: string;
-    server?: string;
+  async createCharacter(name: string, options?: {
+    icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character> {
-    return localStore.createCharacterLocal(userId, name, options);
+    return localStore.createCharacterLocal(name, options);
   }
 
   async deleteCharacter(characterId: string): Promise<void> {
@@ -52,16 +44,7 @@ class LocalDataSource implements DataSource {
   }
 
   async createPlan(characterId: string, plan: Omit<Plan, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Plan> {
-    return localStore.createPlanLocal(
-      characterId,
-      plan.name,
-      plan.flow_type,
-      plan.version,
-      plan.flow_category,
-      plan.bow_type,
-      plan.suit_type,
-      plan.loan_dingyin
-    );
+    return localStore.createPlanLocal(characterId, plan.name, plan.flow_type, plan.version, plan.flow_category, plan.bow_type, plan.suit_type, plan.loan_dingyin);
   }
 
   async updatePlan(planId: string, updates: Partial<Plan>): Promise<void> {
@@ -77,15 +60,7 @@ class LocalDataSource implements DataSource {
   }
 
   async createEquipment(characterId: string, equipment: Omit<Equipment, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Equipment> {
-    return localStore.createEquipmentLocal(
-      characterId,
-      equipment.slot,
-      equipment.name,
-      equipment.level,
-      equipment.attributes,
-      equipment.is_wearing,
-      equipment.suit_type as string | undefined
-    );
+    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined);
   }
 
   async updateEquipment(equipmentId: string, updates: Partial<Equipment>): Promise<void> {
@@ -110,34 +85,19 @@ class LocalDataSource implements DataSource {
 }
 
 class ApiDataSource implements DataSource {
-  private fingerprint: string;
-
-  constructor(fingerprint: string) {
-    this.fingerprint = fingerprint;
-  }
-
-  async getCharacters(userId: string): Promise<Character[]> {
-    const response = await fetch('/api/characters', {
-      headers: { 'x-fingerprint': this.fingerprint }
-    });
+  async getCharacters(): Promise<Character[]> {
+    const response = await fetch('/api/characters');
     const data = await response.json();
     if (!data.success) throw new Error('Failed to fetch characters');
     return data.characters;
   }
 
-  async createCharacter(userId: string, _fingerprint: string, name: string, options?: {
-    icon?: string;
-    level?: string;
-    server_name?: string;
-    role_id?: string;
-    server?: string;
+  async createCharacter(name: string, options?: {
+    icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character> {
     const response = await fetch('/api/characters', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-fingerprint': this.fingerprint
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, ...options })
     });
     const data = await response.json();
@@ -148,10 +108,7 @@ class ApiDataSource implements DataSource {
   async deleteCharacter(characterId: string): Promise<void> {
     const response = await fetch('/api/characters', {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-fingerprint': this.fingerprint
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ characterId })
     });
     const data = await response.json();
@@ -197,63 +154,36 @@ class ApiDataSource implements DataSource {
   }
 
   async getEquipments(characterId: string): Promise<Equipment[]> {
-    const response = await fetch(`/api/equipments?characterId=${characterId}`);
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to fetch equipments');
-    return data.equipments;
+    return localStore.getEquipmentsByCharacterIdLocal(characterId);
   }
 
   async createEquipment(characterId: string, equipment: Omit<Equipment, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Equipment> {
-    const response = await fetch('/api/equipments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ characterId, ...equipment })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to create equipment');
-    return data.equipment;
+    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined);
   }
 
   async updateEquipment(equipmentId: string, updates: Partial<Equipment>): Promise<void> {
-    const response = await fetch('/api/equipments', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ equipmentId, updates })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to update equipment');
+    await localStore.updateEquipmentLocal(equipmentId, updates);
   }
 
   async deleteEquipment(equipmentId: string): Promise<void> {
-    const response = await fetch('/api/equipments', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ equipmentId })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to delete equipment');
+    return localStore.deleteEquipmentLocal(equipmentId);
   }
 
   async exportData(): Promise<object> {
-    const response = await fetch('/api/export', {
-      headers: { 'x-fingerprint': this.fingerprint }
-    });
+    const response = await fetch('/api/export');
     const data = await response.json();
     if (!data.success) throw new Error('Failed to export data');
     return data.data;
   }
 
   async importData(data: object): Promise<void> {
-    const result = await fetch('/api/export', {
+    const response = await fetch('/api/export', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-fingerprint': this.fingerprint
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data })
     });
-    const resultData = await result.json();
-    if (!resultData.success) throw new Error('Failed to import data');
+    const result = await response.json();
+    if (!result.success) throw new Error('Failed to import data');
   }
 
   async createShare(snapshot: object): Promise<{ id: string }> {
@@ -270,11 +200,11 @@ class ApiDataSource implements DataSource {
 
 let dataSource: DataSource | null = null;
 
-export function initDataSource(fingerprint: string, isLocal: boolean): DataSource {
+export function initDataSource(isLocal: boolean): DataSource {
   if (isLocal) {
     dataSource = new LocalDataSource();
   } else {
-    dataSource = new ApiDataSource(fingerprint);
+    dataSource = new ApiDataSource();
   }
   return dataSource;
 }

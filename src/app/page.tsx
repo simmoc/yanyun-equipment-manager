@@ -6,6 +6,7 @@ import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT
 import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
 import { exportLocalData, importLocalData } from '@/lib/localStore';
 import { getDataSource } from '@/lib/dataSource';
+import { parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
 import { useAppData, useConfigData } from '@/hooks';
 import {
   NewEquipmentModal,
@@ -21,10 +22,8 @@ import {
 
 export default function Home() {
   const {
-    fingerprint,
     isLoading,
     isLocal,
-    localUserId,
     characters,
     selectedCharacter,
     setSelectedCharacter,
@@ -32,13 +31,14 @@ export default function Home() {
     selectedPlan,
     setSelectedPlan,
     equipments,
+    setEquipments,
     authCredentials,
     availableGameRoles,
     rolePanelData,
+    setRolePanelData,
     isLoadingRolePanel,
     fetchCharacters,
     fetchPlansAndEquipments,
-    initLocalAuth,
     saveAuthCredentials,
     clearAuthCredentials,
     fetchRolePanel
@@ -87,6 +87,7 @@ export default function Home() {
   // 游戏角色选择状态
   const [selectedGameRoleId, setSelectedGameRoleId] = useState<string>('');
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const prevAuthRef = useRef(authCredentials);
 
@@ -208,6 +209,83 @@ export default function Home() {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!selectedCharacter || !authCredentials) return;
+    setIsRefreshing(true);
+    try {
+      const [roleInfoRes, panelRes] = await Promise.all([
+        fetch('/api/auth/role-info', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roleId: selectedCharacter.role_id,
+            server: selectedCharacter.server,
+            cookies: authCredentials.cookies,
+            loginToken: authCredentials.loginToken
+          })
+        }),
+        fetch('/api/auth/role-panel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roleId: selectedCharacter.role_id,
+            server: selectedCharacter.server,
+            cookies: authCredentials.cookies,
+            loginToken: authCredentials.loginToken
+          })
+        })
+      ]);
+
+      const roleInfoResult = await roleInfoRes.json();
+      const panelResult = await panelRes.json();
+
+      if (roleInfoResult.needReauth || panelResult.needReauth) {
+        clearAuthCredentials();
+        setShowQRCodeAuth(true);
+        setToast({ message: '登录已过期，请重新扫码登录', type: 'error' });
+        return;
+      }
+
+      if (roleInfoResult.success && roleInfoResult.data?.roleInfo) {
+        const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, configData);
+        const equipmentsList = convertToEquipmentList(rawEquips);
+
+        const authKey = `auth_${selectedCharacter.role_id}`;
+        const authDataStr = localStorage.getItem(authKey);
+        const authData = authDataStr ? JSON.parse(authDataStr) : {};
+        authData.roleInfo = roleInfoResult.data.roleInfo;
+        authData.reportToken = roleInfoResult.data.reportToken;
+        authData.equipments = equipmentsList;
+        if (panelResult.success && panelResult.data) {
+          authData.rolePanelData = panelResult.data;
+        }
+        localStorage.setItem(authKey, JSON.stringify(authData));
+
+        setEquipments(equipmentsList);
+        if (panelResult.success && panelResult.data) {
+          const panelData = panelResult.data;
+          if (!panelData['combat_plan.xinfa_info'] && !panelData.xinfa_info) {
+            const ri = roleInfoResult.data.roleInfo;
+            if (ri['combat_plan.xinfa_info']) {
+              panelData['combat_plan.xinfa_info'] = ri['combat_plan.xinfa_info'];
+            } else if (ri.xinfa_info) {
+              panelData['combat_plan.xinfa_info'] = ri.xinfa_info;
+            }
+            if (ri['base.nickname']) panelData['base.nickname'] = ri['base.nickname'];
+            if (ri['base.level']) panelData['base.level'] = ri['base.level'];
+          }
+          setRolePanelData(panelData);
+        }
+        setToast({ message: '数据已刷新', type: 'success' });
+      } else {
+        setToast({ message: roleInfoResult.error || '刷新数据失败', type: 'error' });
+      }
+    } catch (error) {
+      console.error('刷新数据失败:', error);
+      setToast({ message: '刷新数据失败', type: 'error' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleShareCharacter = async () => {
     if (!selectedCharacter) return;
     try {
@@ -267,8 +345,14 @@ export default function Home() {
     setShowSelectRoleModal(true);
   };
 
-  // 弹窗中选择角色
-  const handleModalRoleSelect = (gameRoleId: string) => {
+  // 弹窗中选择已有角色
+  const handleSelectCharacter = (character: Character) => {
+    setShowSelectRoleModal(false);
+    setSelectedCharacter(character);
+  };
+
+  // 弹窗中绑定新角色
+  const handleBindGameRole = (gameRoleId: string) => {
     setShowSelectRoleModal(false);
     handleGameRoleSelect(gameRoleId);
   };
@@ -287,15 +371,6 @@ export default function Home() {
     if (existingCharacter) {
       setSelectedCharacter(existingCharacter);
       setSelectedGameRoleId('');
-      // 如果已有角色，尝试读取保存的角色面板数据
-      const authDataStr = localStorage.getItem(`auth_${existingCharacter.id}`);
-      if (authDataStr) {
-        const authData = JSON.parse(authDataStr);
-        if (authData.rolePanelData) {
-          // 这里我们需要调用 useAppData 来更新状态，但我们在这里不能直接调用
-          // 所以让 selectedCharacter 的 useEffect 来处理
-        }
-      }
       return;
     }
     
@@ -304,103 +379,82 @@ export default function Home() {
     try {
       const ds = getDataSource();
       
-      // 获取角色信息（装备等）
-      const response = await fetch('/api/auth/role-info', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          roleId: gameRole.roleId,
-          server: gameRole.server,
-          cookies: authCredentials.cookies,
-          loginToken: authCredentials.loginToken
+      // 同时获取角色信息和面板数据
+      const [roleInfoResponse, panelResponse] = await Promise.all([
+        fetch('/api/auth/role-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roleId: gameRole.roleId,
+            server: gameRole.server,
+            cookies: authCredentials.cookies,
+            loginToken: authCredentials.loginToken
+          })
+        }),
+        fetch('/api/auth/role-panel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roleId: gameRole.roleId,
+            server: gameRole.server,
+            cookies: authCredentials.cookies,
+            loginToken: authCredentials.loginToken
+          })
         })
-      });
+      ]);
       
-      const result = await response.json();
+      const roleInfoResult = await roleInfoResponse.json();
+      const panelResult = await panelResponse.json();
       
-      if (result.needReauth) {
+      if (roleInfoResult.needReauth || panelResult.needReauth) {
         clearAuthCredentials();
         setShowQRCodeAuth(true);
-        setToast({ message: `登录已过期：${result.error}，请重新扫码登录`, type: 'error' });
+        setToast({ message: '登录已过期，请重新扫码登录', type: 'error' });
         return;
       }
       
-      if (result.success) {
-        // 创建角色
-        const character = await ds.createCharacter(localUserId || '', fingerprint, gameRole.nick, {
-          icon: gameRole.icon,
-          level: gameRole.level,
-          server_name: gameRole.serverName,
-          role_id: gameRole.roleId,
-          server: gameRole.server
-        });
-        
-        // 获取角色面板数据
-        let rolePanelData: any = null;
-        try {
-          const panelResponse = await fetch('/api/auth/role-panel', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              roleId: gameRole.roleId,
-              server: gameRole.server,
-              cookies: authCredentials.cookies,
-              loginToken: authCredentials.loginToken
-            })
-          });
-          
-          const panelResult = await panelResponse.json();
-          if (panelResult.needReauth) {
-            clearAuthCredentials();
-            setShowQRCodeAuth(true);
-            setToast({ message: `登录已过期：${panelResult.error}，请重新扫码登录`, type: 'error' });
-            return;
-          }
-          if (panelResult.success && panelResult.data) {
-            rolePanelData = panelResult.data;
-          }
-        } catch (panelError) {
-          console.error('获取角色面板数据失败:', panelError);
-        }
-        
-        // 保存认证信息（区分 roleInfo 和 rolePanelData）
-        localStorage.setItem(`auth_${character.id}`, JSON.stringify({
-          roleId: gameRole.roleId,
-          server: gameRole.server,
-          cookies: authCredentials.cookies,
-          loginToken: authCredentials.loginToken,
-          roleInfo: result.data.roleInfo,
-          reportToken: result.data.reportToken,
-          rolePanelData: rolePanelData
-        }));
-        
-        // 导入装备
-        const importedCount = await importRoleInfoEquipments(character.id, result.data.roleInfo);
-        
-        setSelectedCharacter(character);
-        setSelectedGameRoleId('');
-        await fetchCharacters();
-        await fetchPlansAndEquipments();
-        
-        setToast({
-          message: importedCount > 0 
-            ? `角色绑定成功！已自动导入 ${importedCount} 件装备`
-            : '角色绑定成功！',
-          type: 'success'
-        });
-      } else {
-        if (result.needReauth) {
-          clearAuthCredentials();
-          setShowQRCodeAuth(true);
-          setToast({ message: `登录已过期：${result.error}，请重新扫码登录`, type: 'error' });
-          return;
-        }
-        setToast({ message: result.error || '获取角色信息失败', type: 'error' });
+      if (!roleInfoResult.success) {
+        setToast({ message: roleInfoResult.error || '获取角色信息失败', type: 'error' });
+        return;
       }
+      
+      const rolePanelData = panelResult.success ? panelResult.data : null;
+      
+      // 等待两个API结果后，再创建角色
+      const character = await ds.createCharacter(gameRole.nick, {
+        icon: gameRole.icon,
+        level: gameRole.level,
+        server_name: gameRole.serverName,
+        role_id: gameRole.roleId,
+        server: gameRole.server
+      });
+      
+      // 解析装备并保存到auth缓存
+      const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, configData);
+      const equipmentsList = convertToEquipmentList(rawEquips);
+
+      localStorage.setItem(`auth_${character.role_id}`, JSON.stringify({
+        roleId: gameRole.roleId,
+        server: gameRole.server,
+        cookies: authCredentials.cookies,
+        loginToken: authCredentials.loginToken,
+        roleInfo: roleInfoResult.data.roleInfo,
+        reportToken: roleInfoResult.data.reportToken,
+        rolePanelData: rolePanelData,
+        equipments: equipmentsList
+      }));
+      
+      setSelectedCharacter(character);
+      setSelectedGameRoleId('');
+      await fetchCharacters();
+      await fetchPlansAndEquipments();
+      
+      setToast({
+        message: equipmentsList.length > 0 
+          ? `角色绑定成功！已加载 ${equipmentsList.length} 件装备`
+          : '角色绑定成功！',
+        type: 'success'
+      });
     } catch (error) {
       console.error('创建角色失败:', error);
       clearAuthCredentials();
@@ -411,203 +465,6 @@ export default function Home() {
     }
   };
 
-  const importRoleInfoEquipments = async (characterId: string, roleInfo: any): Promise<number> => {
-    if (!roleInfo) return 0;
-    
-    console.log('roleInfo keys:', Object.keys(roleInfo).slice(0, 20));
-    console.log('roleInfo combat keys:', Object.keys(roleInfo).filter(k => k.includes('combat') || k.includes('equip')));
-    
-    const ds = getDataSource();
-    let equips: any[] = [];
-    
-    const wearEquips = roleInfo['combat_plan.wear_equips'];
-    
-    if (wearEquips && typeof wearEquips === 'object') {
-      console.log('Found wear_equips, keys:', Object.keys(wearEquips));
-      equips = parseRawEquipments({ combat_plan: { wear_equips: wearEquips } });
-    } else if (roleInfo.character_info?.equipments) {
-      equips = roleInfo.character_info.equipments;
-    } else if (roleInfo.combat_plan?.wear_equips) {
-      equips = parseRawEquipments(roleInfo);
-    }
-    
-    console.log('Found equipments count:', equips.length);
-    
-    if (equips.length === 0) return 0;
-    
-    let count = 0;
-    
-    const slotMap: Record<string, EquipmentSlot> = {
-      '1': '主武器', '2': '副武器', '3': '冠胄', '4': '胸甲',
-      '5': '胫甲', '8': '腕甲', '9': '射决', '10': '环', '11': '佩', '21': '弓'
-    };
-    
-    const attrNameMap: Record<string, string> = {
-      'MIN_W_ATK': '最小外功攻击',
-      'MAX_W_ATK': '最大外功攻击',
-      'MIN_M_ATK': '最小内功攻击',
-      'MAX_M_ATK': '最大内功攻击',
-      'DEF': '防御',
-      'W_DEF': '外功防御',
-      'HP': '气血',
-      'HP_MAX': '气血上限',
-      'ARCHER_DAMAGE': '穿透伤害',
-      'ARCHER_WEAKPOINT_DAMAGE': '穿透弱点伤害',
-      'PVP_DEF': 'PVP防御',
-      'PVE_DEF': 'PVE防御',
-      'CRI_PROB': '会心率',
-      'ACR_PROB': '精准率',
-      'BASH_PROB': '会意率',
-      'PVP_CRI_PROB': 'PVP会心率',
-      'PVP_ACR_PROB': 'PVP精准率',
-      'PVP_BASH_PROB': 'PVP会意率',
-      'STR': '力道',
-      'BAS': '气韵',
-      'CON': '根骨',
-      'CRI': '身法',
-      'FIRE_ATK': '火攻击',
-      'ICE_ATK': '冰攻击',
-      'THUNDER_ATK': '雷攻击',
-      'WIND_ATK': '风攻击',
-      'FIRE_DEF': '火抗',
-      'ICE_DEF': '冰抗',
-      'THUNDER_DEF': '雷抗',
-      'WIND_DEF': '风抗'
-    };
-    
-    for (const equip of equips) {
-      try {
-        const slot = slotMap[equip.slot];
-        if (!slot) {
-          console.warn('异常装备部位:', equip.slot, '装备:', equip.name || equip.no);
-        }
-        const mappedSlot = slot || EQUIPMENT_SLOTS[0];
-        const attributes: EquipmentAttribute[] = [];
-        
-        if (equip.base_attrs) {
-          for (const [key, value] of Object.entries(equip.base_attrs)) {
-            const name = attrNameMap[key] || key;
-            attributes.push({ name, value: value as number, is_main: true });
-          }
-        }
-        
-        for (const affix of equip.base_affixes || []) {
-          const affixName = affix.name || (affix.id ? `词条${affix.id}` : '未知词条');
-          attributes.push({ 
-            name: affixName, 
-            value: affix.value as number, 
-            is_main: affix.is_max as boolean,
-            rate: affix.rate as number,
-            quality: affix.quality as number
-          });
-        }
-        
-        await ds.createEquipment(characterId, {
-          slot: mappedSlot,
-          name: equip.name || (equip.no ? `装备${equip.no}` : '未知装备'),
-          level: equip.level || 0,
-          attributes,
-          is_wearing: true,
-          suit_type: equip.suffix_name && equip.suffix_name !== '无套装' && equip.suffix_name !== '套装0' ? equip.suffix_name as SuitType : undefined
-        });
-        
-        count++;
-      } catch (error) {
-        console.error('导入装备失败:', equip.name || equip.slot, error);
-      }
-    }
-    
-    return count;
-  };
-
-  const parseRawEquipments = (data: any): any[] => {
-    const wearEquips = data.combat_plan?.wear_equips || {};
-    const equipments: any[] = [];
-    
-    console.log('parseRawEquipments - wearEquips keys:', Object.keys(wearEquips));
-    console.log('parseRawEquipments - wearEquips count:', Object.keys(wearEquips).length);
-    
-    for (const [slot, equipData] of Object.entries(wearEquips)) {
-      console.log(`parseRawEquipments - processing slot ${slot}:`, equipData);
-      
-      const equip = equipData as any;
-      const ex = equip.ex || {};
-      const suffixId = ex.suffix || 0;
-      const baseAffixes = ex.base_affixes || [];
-      
-      if (!equip.No || equip.No === 0 || equip.No === 2402000) {
-        console.log(`parseRawEquipments - 跳过异常装备 slot=${slot}, No=${equip.No}`);
-        continue;
-      }
-      
-      if (baseAffixes.length === 0 && Object.keys(ex.base_attrs || {}).length === 0) {
-        console.log(`parseRawEquipments - 跳过无属性装备 slot=${slot}, No=${equip.No}`);
-        continue;
-      }
-      
-      let equipName = `装备${equip.No || ''}`;
-      let suffixName = `套装${suffixId}`;
-      let equipLevel = 0;
-      
-      if (configData?.equip_data) {
-        const equipInfo = configData.equip_data[String(equip.No)];
-        if (equipInfo) {
-          equipName = equipInfo.name;
-          equipLevel = equipInfo.level || 0;
-        } else {
-          console.log(`parseRawEquipments - 装备No=${equip.No}不在配置文件中`);
-        }
-      }
-      
-      if (configData?.suffix_data) {
-        const suffixInfo = configData.suffix_data[String(suffixId)];
-        if (suffixInfo) {
-          suffixName = suffixInfo.name;
-        }
-      }
-      
-      const equipInfo: any = {
-        slot: slot,
-        no: equip.No || 0,
-        name: equipName,
-        level: equipLevel,
-        suffix: suffixId,
-        suffix_name: suffixName,
-        base_attrs: ex.base_attrs || {},
-        base_affixes: []
-      };
-      
-      console.log(`parseRawEquipments - slot ${slot} has ${baseAffixes.length} affixes`);
-      
-      for (const affix of baseAffixes) {
-        if (Array.isArray(affix) && affix.length >= 4) {
-          let affixName = `词条${affix[0]}`;
-          
-          if (configData?.affix_data) {
-            const affixInfo = configData.affix_data[String(affix[0])];
-            if (affixInfo) {
-              affixName = affixInfo.name;
-            }
-          }
-          
-          equipInfo.base_affixes.push({
-            id: affix[0],
-            name: affixName,
-            value: affix[1],
-            rate: Math.round(affix[2] * 100 * 100) / 100,
-            quality: affix[3],
-            is_max: affix.length > 4 ? affix[4] : false
-          });
-        }
-      }
-      
-      equipments.push(equipInfo);
-    }
-    
-    console.log('parseRawEquipments - returning', equipments.length, 'equipments');
-    return equipments;
-  };
-
   const handleImport = async (file: File) => {
     try {
       const text = await file.text();
@@ -615,21 +472,19 @@ export default function Home() {
 
       if (isLocal) {
         importLocalData(data as Parameters<typeof importLocalData>[0]);
-        if (localUserId) {
-          const { getCharactersByUserIdLocal } = await import('@/lib/localStore');
-          const chars = await getCharactersByUserIdLocal(localUserId);
-          setSelectedCharacter(chars.length > 0 ? chars[0] : null);
-        }
-        alert('导入成功！');
+        const { getCharactersLocal } = await import('@/lib/localStore');
+        const chars = await getCharactersLocal();
+        setSelectedCharacter(chars.length > 0 ? chars[0] : null);
+        setToast({ message: '导入成功！', type: 'success' });
       } else {
         const ds = getDataSource();
         await ds.importData(data);
-        alert('导入成功！');
+        setToast({ message: '导入成功！', type: 'success' });
         await fetchCharacters();
       }
     } catch (error) {
       console.error('导入失败:', error);
-      alert('导入失败，请检查文件格式');
+      setToast({ message: '导入失败，请检查文件格式', type: 'error' });
     }
   };
 
@@ -696,30 +551,7 @@ export default function Home() {
               <span className="text-gray-300">已登录</span>
             </div>
 
-            {/* 游戏角色选择下拉 - 随时可用 */}
-            {availableGameRoles.length > 0 && (
-              <select
-                value={selectedGameRoleId}
-                onChange={(e) => handleGameRoleSelect(e.target.value)}
-                className="min-w-[250px] px-3 py-2 bg-gray-700 rounded-lg"
-                disabled={isCreatingCharacter}
-              >
-                <option value="" disabled>选择游戏角色</option>
-                {availableGameRoles.map((role) => {
-                  const isAlreadyBound = characters.some(c => 
-                    c.role_id === role.roleId && c.server === role.server
-                  );
-                  return (
-                    <option key={role.roleId} value={role.roleId}>
-                      {role.nick} - Lv.{role.level} ({role.serverName})
-                      {isAlreadyBound ? ' ✓' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-            
-            {isCreatingCharacter && (
+{isCreatingCharacter && (
               <div className="flex items-center gap-2 text-blue-400">
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400"></div>
                 创建角色中...
@@ -755,6 +587,23 @@ export default function Home() {
                     className="px-3 sm:px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition text-sm sm:text-base"
                   >
                     分享角色
+                  </button>
+
+                  {/* 刷新数据按钮 */}
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing || !authCredentials}
+                    className="px-3 sm:px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition text-sm sm:text-base disabled:opacity-50"
+                  >
+                    {isRefreshing ? '刷新中...' : '刷新数据'}
+                  </button>
+
+                  {/* 切换角色按钮 */}
+                  <button
+                    onClick={() => setShowSelectRoleModal(true)}
+                    className="px-3 sm:px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition text-sm sm:text-base"
+                  >
+                    切换角色
                   </button>
 
                   {/* 切换账号按钮 */}
@@ -945,22 +794,22 @@ export default function Home() {
                   <div className="text-sm font-medium mb-1 text-green-300">攻击属性</div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                     {[
-                      ['最小外功', rolePanelData.MIN_W_ATK],
-                      ['最大外功', rolePanelData.MAX_W_ATK],
-                      ['最小鸣金', rolePanelData.MIN_PRO_ATK_A],
-                      ['最大鸣金', rolePanelData.MAX_PRO_ATK_A],
-                      ['最小牵丝', rolePanelData.MIN_PRO_ATK_B],
-                      ['最大牵丝', rolePanelData.MAX_PRO_ATK_B],
-                      ['最小破竹', rolePanelData.MIN_PRO_ATK_C],
-                      ['最大裂石', rolePanelData.MAX_PRO_ATK_C],
-                      ['最小破竹', rolePanelData.MIN_PRO_ATK_E],
-                      ['最大破竹', rolePanelData.MAX_PRO_ATK_E],
-                      ['最小无相', rolePanelData.MIN_ACTIVE_PRO_ATK],
-                      ['最大无相', rolePanelData.MAX_ACTIVE_PRO_ATK],
-                    ].map(([label, value]) => (
-                      <div key={label as string} className="flex justify-between items-center gap-1">
-                        <span className="text-xs text-gray-400">{label as string}</span>
-                        <span className="text-sm font-medium">{value as string}</span>
+                      { label: '最小外功', field: 'MIN_W_ATK', value: rolePanelData.MIN_W_ATK },
+                      { label: '最大外功', field: 'MAX_W_ATK', value: rolePanelData.MAX_W_ATK },
+                      { label: '最小鸣金', field: 'MIN_PRO_ATK_A', value: rolePanelData.MIN_PRO_ATK_A },
+                      { label: '最大鸣金', field: 'MAX_PRO_ATK_A', value: rolePanelData.MAX_PRO_ATK_A },
+                      { label: '最小牵丝', field: 'MIN_PRO_ATK_B', value: rolePanelData.MIN_PRO_ATK_B },
+                      { label: '最大牵丝', field: 'MAX_PRO_ATK_B', value: rolePanelData.MAX_PRO_ATK_B },
+                      { label: '最小裂石', field: 'MIN_PRO_ATK_C', value: rolePanelData.MIN_PRO_ATK_C },
+                      { label: '最大裂石', field: 'MAX_PRO_ATK_C', value: rolePanelData.MAX_PRO_ATK_C },
+                      { label: '最小破竹', field: 'MIN_PRO_ATK_E', value: rolePanelData.MIN_PRO_ATK_E },
+                      { label: '最大破竹', field: 'MAX_PRO_ATK_E', value: rolePanelData.MAX_PRO_ATK_E },
+                      { label: '最小无相', field: 'MIN_ACTIVE_PRO_ATK', value: rolePanelData.MIN_ACTIVE_PRO_ATK },
+                      { label: '最大无相', field: 'MAX_ACTIVE_PRO_ATK', value: rolePanelData.MAX_ACTIVE_PRO_ATK },
+                    ].map(item => (
+                      <div key={item.field} className="flex justify-between items-center gap-1">
+                        <span className="text-xs text-gray-400">{item.label}</span>
+                        <span className="text-sm font-medium">{item.value}</span>
                       </div>
                     ))}
                   </div>
@@ -1059,7 +908,8 @@ export default function Home() {
         onClose={() => setShowSelectRoleModal(false)}
         roles={availableGameRoles}
         characters={characters}
-        onSelect={handleModalRoleSelect}
+        onSelect={handleBindGameRole}
+        onSelectCharacter={handleSelectCharacter}
         isLoading={isCreatingCharacter}
       />
 

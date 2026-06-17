@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { EQUIPMENT_SLOTS, SUIT_TYPES } from '@/types';
 import type { EquipmentSlot, SuitType, XinfaData } from '@/types';
+import { setConfigData as saveConfigData } from '@/lib/configStore';
 
 export function useConfigData() {
   const [configData, setConfigData] = useState<{
@@ -18,6 +19,7 @@ export function useConfigData() {
         const data = await response.json();
         if (data.success) {
           setConfigData(data.data);
+          saveConfigData(data.data);
         }
       } catch (error) {
         console.error('获取配置数据失败:', error);

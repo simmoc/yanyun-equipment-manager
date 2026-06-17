@@ -1,30 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCharactersByUserId, createCharacter, deleteCharacter } from '@/lib/db';
-import { getUserByFingerprint } from '@/lib/db';
+import { getCharacters, createCharacter, deleteCharacter, getCharacterByRoleId } from '@/lib/db';
 
-// 角色管理 API
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const fingerprint = request.headers.get('x-fingerprint');
-    
-    if (!fingerprint) {
-      return NextResponse.json(
-        { error: '缺少指纹信息' },
-        { status: 400 }
-      );
-    }
-    
-    const user = await getUserByFingerprint(fingerprint);
-    if (!user) {
-      return NextResponse.json(
-        { error: '用户不存在' },
-        { status: 404 }
-      );
-    }
-    
-    const characters = await getCharactersByUserId(user.id);
-    
+    const characters = await getCharacters();
     return NextResponse.json({
       success: true,
       characters: characters.map(c => ({
@@ -50,40 +29,45 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const fingerprint = request.headers.get('x-fingerprint');
     const body = await request.json();
     const { name, icon, level, server_name, role_id, server } = body;
-    
-    if (!fingerprint) {
-      return NextResponse.json(
-        { error: '缺少指纹信息' },
-        { status: 400 }
-      );
-    }
-    
+
     if (!name || name.trim() === '') {
       return NextResponse.json(
         { error: '角色名称不能为空' },
         { status: 400 }
       );
     }
-    
-    const user = await getUserByFingerprint(fingerprint);
-    if (!user) {
+
+    if (!role_id) {
       return NextResponse.json(
-        { error: '用户不存在' },
-        { status: 404 }
+        { error: '缺少角色ID' },
+        { status: 400 }
       );
     }
-    
-    const character = await createCharacter(user.id, name.trim(), {
-      icon,
-      level,
-      server_name,
-      role_id,
-      server
+
+    const existing = await getCharacterByRoleId(role_id);
+    if (existing) {
+      return NextResponse.json({
+        success: true,
+        character: {
+          id: existing.id,
+          name: existing.name,
+          icon: existing.icon,
+          level: existing.level,
+          server_name: existing.server_name,
+          role_id: existing.role_id,
+          server: existing.server,
+          created_at: existing.created_at,
+          updated_at: existing.updated_at
+        }
+      });
+    }
+
+    const character = await createCharacter(name.trim(), {
+      icon, level, server_name, role_id, server
     });
-    
+
     return NextResponse.json({
       success: true,
       character: {
@@ -109,34 +93,18 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const fingerprint = request.headers.get('x-fingerprint');
     const body = await request.json();
     const { characterId } = body;
-    
-    if (!fingerprint) {
-      return NextResponse.json(
-        { error: '缺少指纹信息' },
-        { status: 400 }
-      );
-    }
-    
+
     if (!characterId) {
       return NextResponse.json(
         { error: '缺少角色ID' },
         { status: 400 }
       );
     }
-    
-    const user = await getUserByFingerprint(fingerprint);
-    if (!user) {
-      return NextResponse.json(
-        { error: '用户不存在' },
-        { status: 404 }
-      );
-    }
-    
+
     await deleteCharacter(characterId);
-    
+
     return NextResponse.json({
       success: true,
       message: '角色已删除'
