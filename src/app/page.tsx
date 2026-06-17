@@ -37,6 +37,8 @@ export default function Home() {
     rolePanelData,
     setRolePanelData,
     isLoadingRolePanel,
+    pendingRoleSelector,
+    setPendingRoleSelector,
     fetchCharacters,
     fetchPlansAndEquipments,
     saveAuthCredentials,
@@ -64,6 +66,13 @@ export default function Home() {
   const [showTuningAssistant, setShowTuningAssistant] = useState(false);
   const [showQRCodeAuth, setShowQRCodeAuth] = useState(false);
   const [showSelectRoleModal, setShowSelectRoleModal] = useState(false);
+
+  useEffect(() => {
+    if (pendingRoleSelector) {
+      setShowSelectRoleModal(true);
+      setPendingRoleSelector(false);
+    }
+  }, [pendingRoleSelector]);
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'error' | 'info' } | null>(null);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [newEquipmentData, setNewEquipmentData] = useState({
