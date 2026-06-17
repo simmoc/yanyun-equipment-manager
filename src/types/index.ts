@@ -52,6 +52,7 @@ export interface Character {
   server_name?: string;
   role_id?: string;
   server?: string;
+  uuid?: string;
   created_at: Date;
   updated_at: Date;
 }

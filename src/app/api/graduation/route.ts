@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlansByCharacterId, getEquipmentsByCharacterId } from '@/lib/db';
+import { ensureDb, getPlansByCharacterId, getEquipmentsByCharacterId } from '@/lib/db';
 import { calculateGraduationRate, calculateAllGraduationRates } from '@/lib/graduation';
 
 // 毕业率计算 API
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureDb();
     const { searchParams } = new URL(request.url);
     const characterId = searchParams.get('characterId');
     const planId = searchParams.get('planId');

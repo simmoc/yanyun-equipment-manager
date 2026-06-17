@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createShare } from '@/lib/db';
+import { ensureDb, createShare } from '@/lib/db';
 import { isDbConfigured } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (isDbConfigured()) {
+      await ensureDb();
       const share = await createShare(snapshot);
       return NextResponse.json({
         success: true,

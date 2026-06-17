@@ -12,15 +12,41 @@ function generateId(): string {
   return uuidv4();
 }
 
+function getGodUuid(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const authStr = localStorage.getItem('auth_credentials');
+    if (authStr) {
+      const auth = JSON.parse(authStr);
+      if (auth.cookies?.godUuid) return auth.cookies.godUuid;
+    }
+    const cacheStr = localStorage.getItem('qrcode_auth_cache');
+    if (cacheStr) {
+      const cache = JSON.parse(cacheStr);
+      if (cache.cookies?.godUuid) return cache.cookies.godUuid;
+    }
+  } catch {}
+  return '';
+}
+
+export function getNamespacedKey(key: string): string {
+  const uid = getGodUuid();
+  return uid ? `${key}_${uid}` : key;
+}
+
+function getKey(key: string): string {
+  return getNamespacedKey(key);
+}
+
 function getItem<T>(key: string): T[] {
   if (typeof window === 'undefined') return [];
-  const data = localStorage.getItem(key);
+  const data = localStorage.getItem(getKey(key));
   return data ? JSON.parse(data) : [];
 }
 
 function setItem<T>(key: string, data: T[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(key, JSON.stringify(data));
+  localStorage.setItem(getKey(key), JSON.stringify(data));
 }
 
 export interface LocalCharacter {
@@ -31,6 +57,7 @@ export interface LocalCharacter {
   server_name?: string;
   role_id?: string;
   server?: string;
+  uuid?: string;
   created_at: string;
   updated_at: string;
 }
@@ -75,7 +102,9 @@ export async function initLocalDatabase() {
 
 export async function getCharactersLocal(): Promise<Character[]> {
   const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
-  const sorted = [...characters].sort((a, b) =>
+  const uid = getGodUuid();
+  const filtered = uid ? characters.filter(c => c.uuid === uid) : characters;
+  const sorted = [...filtered].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
   return sorted.map(c => ({
@@ -86,6 +115,7 @@ export async function getCharactersLocal(): Promise<Character[]> {
     server_name: c.server_name,
     role_id: c.role_id,
     server: c.server,
+    uuid: c.uuid,
     created_at: new Date(c.created_at),
     updated_at: new Date(c.updated_at)
   } as Character));
@@ -103,6 +133,7 @@ export async function createCharacterLocal(
 ): Promise<Character> {
   const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
   const now = new Date().toISOString();
+  const uid = getGodUuid();
   const newCharacter: LocalCharacter = {
     id: generateId(),
     name,
@@ -111,6 +142,7 @@ export async function createCharacterLocal(
     server_name: options?.server_name,
     role_id: options?.role_id,
     server: options?.server,
+    uuid: uid || undefined,
     created_at: now,
     updated_at: now
   };
@@ -124,6 +156,7 @@ export async function createCharacterLocal(
     server_name: newCharacter.server_name,
     role_id: newCharacter.role_id,
     server: newCharacter.server,
+    uuid: newCharacter.uuid,
     created_at: new Date(newCharacter.created_at),
     updated_at: new Date(newCharacter.updated_at)
   } as Character;
@@ -150,6 +183,7 @@ export async function getCharacterByRoleIdLocal(roleId: string): Promise<Charact
   return {
     id: c.id, name: c.name, icon: c.icon, level: c.level,
     server_name: c.server_name, role_id: c.role_id, server: c.server,
+    uuid: c.uuid,
     created_at: new Date(c.created_at), updated_at: new Date(c.updated_at)
   } as Character;
 }
@@ -382,10 +416,10 @@ export function importLocalData(data: {
 }
 
 export function clearLocalData(): void {
-  localStorage.removeItem(STORAGE_KEYS.CHARACTERS);
-  localStorage.removeItem(STORAGE_KEYS.PLANS);
-  localStorage.removeItem(STORAGE_KEYS.EQUIPMENTS);
-  localStorage.removeItem(STORAGE_KEYS.SHARES);
+  localStorage.removeItem(getKey(STORAGE_KEYS.CHARACTERS));
+  localStorage.removeItem(getKey(STORAGE_KEYS.PLANS));
+  localStorage.removeItem(getKey(STORAGE_KEYS.EQUIPMENTS));
+  localStorage.removeItem(getKey(STORAGE_KEYS.SHARES));
 }
 
 // 分享存储

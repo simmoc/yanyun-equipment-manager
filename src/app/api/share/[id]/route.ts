@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getShare } from '@/lib/db';
+import { ensureDb, getShare } from '@/lib/db';
 import { isDbConfigured } from '@/lib/db';
 
 export async function GET(
@@ -17,6 +17,7 @@ export async function GET(
     }
 
     if (isDbConfigured()) {
+      await ensureDb();
       const share = await getShare(id);
       if (!share) {
         return NextResponse.json(
