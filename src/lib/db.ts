@@ -5,6 +5,7 @@ export function isDbConfigured(): boolean {
 }
 
 let _sql: ReturnType<typeof neon> | null = null;
+let _initialized = false;
 
 function getSql() {
   if (!_sql) {
@@ -12,6 +13,12 @@ function getSql() {
     _sql = neon(process.env.DATABASE_URL);
   }
   return _sql;
+}
+
+export async function ensureDb(): Promise<void> {
+  if (_initialized) return;
+  _initialized = true;
+  await initDatabase();
 }
 
 function asRows<T = any>(result: any): T[] {
@@ -46,6 +53,7 @@ export async function initDatabase() {
       level VARCHAR(50),
       server_name VARCHAR(100),
       role_id VARCHAR(100),
+      uuid VARCHAR(100),
       server VARCHAR(100),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -71,6 +79,19 @@ export async function initDatabase() {
           WHERE table_name = 'characters' AND column_name = 'user_id'
         ) THEN
           ALTER TABLE characters DROP COLUMN user_id;
+        END IF;
+      END;
+    $$;
+    `;
+
+    await db`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'characters' AND column_name = 'uuid'
+        ) THEN
+          ALTER TABLE characters ADD COLUMN uuid VARCHAR(100);
         END IF;
       END;
     $$;
@@ -136,16 +157,22 @@ export async function getCharacterByRoleId(roleId: string) {
 }
 
 export async function createCharacter(name: string, options?: {
-  icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
+  icon?: string; level?: string; server_name?: string; role_id?: string; server?: string; uuid?: string;
 }) {
   const db = getSql();
   const result = await db`
-    INSERT INTO characters (name, icon, level, server_name, role_id, server)
-    VALUES (${name}, ${options?.icon || null}, ${options?.level || null}, ${options?.server_name || null}, ${options?.role_id || null}, ${options?.server || null})
-    ON CONFLICT (role_id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, level = EXCLUDED.level, server_name = EXCLUDED.server_name, server = EXCLUDED.server, updated_at = CURRENT_TIMESTAMP
+    INSERT INTO characters (name, icon, level, server_name, role_id, uuid, server)
+    VALUES (${name}, ${options?.icon || null}, ${options?.level || null}, ${options?.server_name || null}, ${options?.role_id || null}, ${options?.uuid || null}, ${options?.server || null})
+    ON CONFLICT (role_id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, level = EXCLUDED.level, server_name = EXCLUDED.server_name, uuid = EXCLUDED.uuid, server = EXCLUDED.server, updated_at = CURRENT_TIMESTAMP
     RETURNING *
   `;
   return asRow(result);
+}
+
+export async function getCharactersByUuid(uuid: string) {
+  const db = getSql();
+  const result = await db`SELECT * FROM characters WHERE uuid = ${uuid} ORDER BY created_at DESC`;
+  return asRows(result);
 }
 
 export async function deleteCharacter(characterId: string) {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCharacters, getPlansByCharacterId, getEquipmentsByCharacterId, createCharacter, createPlan, createEquipment } from '@/lib/db';
+import { ensureDb, getCharacters, getPlansByCharacterId, getEquipmentsByCharacterId, createCharacter, createPlan, createEquipment } from '@/lib/db';
 import type { ExportData } from '@/types';
 
 export async function GET() {
   try {
+    await ensureDb();
     const characters = await getCharacters();
     const allPlans = [];
     const allEquipments = [];
@@ -68,6 +69,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureDb();
     const body = await request.json();
     const { data } = body as { data: ExportData };
 

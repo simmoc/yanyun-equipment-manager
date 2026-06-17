@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { initLocalDatabase } from '@/lib/localStore';
+import { initLocalDatabase, getNamespacedKey } from '@/lib/localStore';
 import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
 import { getEquipmentsFromAuthCache, parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
 import { getConfigData } from '@/lib/configStore';
@@ -24,7 +24,7 @@ export function useAppData() {
       const chars = await ds.getCharacters();
       setCharacters(chars);
       if (chars.length > 0 && !selectedCharacter) {
-        const savedId = localStorage.getItem('selected_character_id');
+        const savedId = localStorage.getItem(getNamespacedKey('selected_character_id'));
         const savedChar = savedId ? chars.find(c => c.id === savedId) : null;
         setSelectedCharacter(savedChar || chars[0]);
       }
@@ -279,9 +279,9 @@ export function useAppData() {
 
   useEffect(() => {
     if (selectedCharacter) {
-      localStorage.setItem('selected_character_id', selectedCharacter.id);
+      localStorage.setItem(getNamespacedKey('selected_character_id'), selectedCharacter.id);
     } else {
-      localStorage.removeItem('selected_character_id');
+      localStorage.removeItem(getNamespacedKey('selected_character_id'));
     }
   }, [selectedCharacter]);
 

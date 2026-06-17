@@ -86,7 +86,25 @@ class LocalDataSource implements DataSource {
 
 class ApiDataSource implements DataSource {
   async getCharacters(): Promise<Character[]> {
-    const response = await fetch('/api/characters');
+    let uuid: string | undefined;
+    if (typeof window !== 'undefined') {
+      try {
+        const authStr = localStorage.getItem('auth_credentials');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          uuid = auth.cookies?.godUuid;
+        }
+        if (!uuid) {
+          const cacheStr = localStorage.getItem('qrcode_auth_cache');
+          if (cacheStr) {
+            const cache = JSON.parse(cacheStr);
+            uuid = cache.cookies?.godUuid;
+          }
+        }
+      } catch {}
+    }
+    const url = uuid ? `/api/characters?uuid=${encodeURIComponent(uuid)}` : '/api/characters';
+    const response = await fetch(url);
     const data = await response.json();
     if (!data.success) throw new Error('Failed to fetch characters');
     return data.characters;
@@ -95,10 +113,27 @@ class ApiDataSource implements DataSource {
   async createCharacter(name: string, options?: {
     icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character> {
+    let uuid: string | undefined;
+    if (typeof window !== 'undefined') {
+      try {
+        const authStr = localStorage.getItem('auth_credentials');
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          uuid = auth.cookies?.godUuid;
+        }
+        if (!uuid) {
+          const cacheStr = localStorage.getItem('qrcode_auth_cache');
+          if (cacheStr) {
+            const cache = JSON.parse(cacheStr);
+            uuid = cache.cookies?.godUuid;
+          }
+        }
+      } catch {}
+    }
     const response = await fetch('/api/characters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, ...options })
+      body: JSON.stringify({ name, ...options, uuid })
     });
     const data = await response.json();
     if (!data.success) throw new Error('Failed to create character');

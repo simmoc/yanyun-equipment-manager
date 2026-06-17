@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPlansByCharacterId, createPlan, updatePlan, deletePlan } from '@/lib/db';
+import { ensureDb, getPlansByCharacterId, createPlan, updatePlan, deletePlan } from '@/lib/db';
 import type { FlowType, VersionType, FlowCategory, BowType, SuitType } from '@/types';
 
 // 方案管理 API
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureDb();
     const { searchParams } = new URL(request.url);
     const characterId = searchParams.get('characterId');
     
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureDb();
     const body = await request.json();
     const {
       characterId,
@@ -102,6 +104,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    await ensureDb();
     const body = await request.json();
     const { planId, updates } = body;
     
@@ -141,6 +144,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await ensureDb();
     const body = await request.json();
     const { planId } = body;
     
