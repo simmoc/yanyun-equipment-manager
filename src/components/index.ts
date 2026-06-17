@@ -10,3 +10,4 @@ export * from './EquipmentCard';
 export * from './PlanCard';
 export * from './TuningAssistantReport';
 export * from './QRCodeAuthModal';
+export * from './SelectRoleModal';
