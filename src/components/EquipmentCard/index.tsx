@@ -1,4 +1,5 @@
 import type { Equipment, EquipmentSlot } from '@/types';
+import { getScoreColor, calcScore } from '@/lib/scoreConfig';
 
 type ConfigData = {
   equip_data: Record<string, { id: number; name: string }>;
@@ -77,6 +78,8 @@ export function EquipmentCard({
       attr.name.includes(builtIn) || builtIn.includes(attr.name)
     )
   );
+
+  const score = calcScore(attributes);
 
 const formatValue = (value: number, attrName: string): string => {
   if (configData?.affix_data) {
@@ -162,6 +165,11 @@ const formatValue = (value: number, attrName: string): string => {
                   已装备
                 </span>
               )}
+              {score > 0 && (
+                <span className={`text-[10px] font-bold ${getScoreColor(score)}`}>
+                  {score}分
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -186,16 +194,17 @@ const formatValue = (value: number, attrName: string): string => {
               const quality = attr.quality || 3;
               const rate = attr.rate || 0;
               const isMax = attr.is_main;
+              const affixColor = getScoreColor(rate);
               return (
                 <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
                   <div className="flex items-center gap-1 min-w-0">
                     {isMax && <span className="text-amber-400 text-[9px] mr-0.5">荐</span>}
-                    <span className="text-gray-300 text-[11px] truncate">{attr.name}</span>
+                    <span className={`${affixColor} text-[11px] truncate`}>{attr.name}</span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-green-400 text-[11px] font-medium">{formatValue(attr.value, attr.name)}</span>
+                    <span className={`${affixColor} text-[11px] font-medium`}>{formatValue(attr.value, attr.name)}</span>
                     {rate > 0 && (
-                      <span className={`text-[7px] leading-none ${isMax ? 'text-yellow-400' : 'text-gray-500'}`}>
+                      <span className={`${affixColor} text-[7px] leading-none`}>
                         {rate.toFixed(1)}%
                       </span>
                     )}

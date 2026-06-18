@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Equipment, Plan, RolePanelData } from '@/types';
 import { FLOW_TYPES } from '@/types';
+import { getScoreColor } from '@/lib/scoreConfig';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -693,8 +694,10 @@ function analyzeEquipments(
 
     const dingyinName = affixes.length > 0 ? affixes[affixes.length - 1].name : null;
 
-    const avgScore = affixes.length > 0 ? totalScore / affixes.length : 0;
-    const finalScore = Math.min(100, Math.max(0, avgScore));
+    const recommended = affixes.filter(a => a.isMax);
+    const finalScore = recommended.length > 0
+      ? Math.round(recommended.reduce((s, a) => s + (a.rate || 0), 0) / recommended.length)
+      : Math.min(100, Math.max(0, affixes.length > 0 ? totalScore / affixes.length : 0));
 
     const slotAdvice = apiSlotAdvice[equip.slot] || flowConfig?.slotAdvice[equip.slot] || '';
 
@@ -1501,29 +1504,29 @@ function TuningReportView({ data }: { data: TuningReportData }) {
                   <span className="text-gray-500 text-xs ml-2">{equip.slot}</span>
                   {equip.suit && <span className="text-amber-400 text-xs ml-2">{equip.suit}</span>}
                 </div>
-                <span className={`text-sm font-bold shrink-0 ${equip.score >= 85 ? 'text-green-400' : equip.score >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {Math.round(equip.score)}分
-                </span>
+<span className={`text-sm font-bold shrink-0 ${getScoreColor(equip.score)}`}>
+  {Math.round(equip.score)}分
+</span>
               </div>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {equip.affixes.map((affix, i) => {
                   const isLast = i === equip.affixes.length - 1;
-                  const rateColor = affix.rate >= 95 ? 'text-green-300' : affix.rate >= 85 ? 'text-yellow-300' : affix.rate > 0 ? 'text-red-300' : '';
+                  const affixColor = getScoreColor(affix.rate);
                   return (
                   <span
                     key={i}
                     className={`px-2 py-0.5 rounded text-xs inline-flex items-center gap-1 ${
-                      affix.tier === 'T0' ? 'bg-green-500/20 text-green-400' :
-                      affix.tier === 'T1' ? 'bg-blue-500/20 text-blue-400' :
-                      affix.tier === '垃圾' ? 'bg-red-500/20 text-red-400' :
-                      'bg-gray-600/50 text-gray-400'
-                    } ${isLast ? 'ring-1 ring-purple-400/50' : ''}`}
+                      affix.tier === 'T0' ? 'bg-green-500/20' :
+                      affix.tier === 'T1' ? 'bg-blue-500/20' :
+                      affix.tier === '垃圾' ? 'bg-red-500/20' :
+                      'bg-gray-600/50'
+                    } ${affixColor} ${isLast ? 'ring-1 ring-purple-400/50' : ''}`}
                     title={`${affix.name}: ${affix.value} (${affix.rate.toFixed(1)}%/Lv${affix.quality})`}
                   >
                     {affix.isMax && <span className="text-amber-400 mr-0.5 text-[10px]">荐</span>}
                     {affix.name}
-                    {affix.rate > 0 && rateColor && (
-                      <span className={`text-[10px] ${rateColor}`}>{Math.round(affix.rate)}%</span>
+                    {affix.rate > 0 && (
+                      <span className={`text-[10px] ${affixColor}`}>{Math.round(affix.rate)}%</span>
                     )}
                   </span>
                 )})}
