@@ -422,8 +422,8 @@ const XINFA_TO_FLOW: Record<string, string> = {
   '154': '鸣金影',  // 剑气纵横
   '451': '破竹风',  // 忘川绝响
   '501': '破竹尘',  // 千营一呼
-  '552': '裂石钧',  // 孤忠不辞
-  '551': '裂石威',  // 霜天白夜
+  '551': '裂石钧',  // 霜天白夜
+  '401': '裂石威',  // 山河绝韵
   '304': '牵丝玉',  // 花上月令
   '351': '牵丝霖',  // 君臣药
   '601': '破竹鸢',  // 扶摇直上
@@ -438,6 +438,34 @@ function detectFlowType(rolePanelData?: RolePanelData | null): string | null {
     const flow = XINFA_TO_FLOW[idStr];
     if (flow) return flow;
   }
+  return null;
+}
+
+function matchFlowByApi(
+  rolePanelData: RolePanelData | null | undefined,
+  apiData: Record<string, ApiFlowEntry> | null,
+  xinfaNameMap: Record<string, string> | null | undefined,
+): string | null {
+  if (!rolePanelData || !apiData || !xinfaNameMap) return null;
+  const xinfaSource = rolePanelData['combat_plan.xinfa_info'] || rolePanelData.xinfa_info;
+  if (!xinfaSource || typeof xinfaSource !== 'object') return null;
+
+  // Build id → name lookup from equipped xinfa
+  const equippedNames = new Set<string>();
+  for (const idStr of Object.keys(xinfaSource)) {
+    const name = xinfaNameMap[idStr];
+    if (name) equippedNames.add(name);
+  }
+
+  // Check each flow's signature xinfa names against equipped
+  for (const [flowType, entry] of Object.entries(apiData)) {
+    const commend = entry.xinfa?.commend;
+    if (!commend) continue;
+    for (const combo of commend) {
+      if (combo.some(name => equippedNames.has(name))) return flowType;
+    }
+  }
+
   return null;
 }
 
@@ -498,6 +526,7 @@ function matchesAffix(actual: string, expected: string): boolean {
 export function TuningAssistantReport({ equipments, plan, rolePanelData, defaultFlowType, xinfaNameMap }: TuningAssistantReportProps) {
   const [selectedFlowType, setSelectedFlowType] = useState<string | null>(null);
   const [showSelector, setShowSelector] = useState(false);
+  const [switchingFlow, setSwitchingFlow] = useState(false);
   const [apiData, setApiData] = useState<Record<string, ApiFlowEntry> | null>(null);
 
   useEffect(() => {
@@ -511,12 +540,12 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
 
   const resolvedFlowType = plan?.flow_type || defaultFlowType || selectedFlowType;
   const detectedFlowType = !plan && !defaultFlowType && !selectedFlowType
-    ? detectFlowType(rolePanelData)
+    ? (detectFlowType(rolePanelData) || matchFlowByApi(rolePanelData, apiData, xinfaNameMap))
     : null;
 
   useEffect(() => {
     if (!plan && !defaultFlowType && !selectedFlowType) {
-      const detected = detectFlowType(rolePanelData);
+      const detected = detectFlowType(rolePanelData) || matchFlowByApi(rolePanelData, apiData, xinfaNameMap);
       if (detected) {
         setSelectedFlowType(detected);
       } else if (rolePanelData) {
@@ -542,13 +571,15 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
     );
   }
 
-  if (showSelector && !resolvedFlowType) {
+  if (showSelector || switchingFlow) {
     return (
       <FlowTypeSelector
         onSelect={(ft) => {
           setSelectedFlowType(ft);
           setShowSelector(false);
+          setSwitchingFlow(false);
         }}
+        onCancel={switchingFlow ? () => setSwitchingFlow(false) : undefined}
         detectedHint={detectedFlowType}
         isDetecting={!rolePanelData}
       />
@@ -556,7 +587,7 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
   }
 
   const reportData = analyzeEquipments(equipments, resolvedFlowType!, rolePanelData, apiData, xinfaNameMap);
-  return <TuningReportView data={reportData} />;
+  return <TuningReportView data={reportData} onSwitchFlow={() => setSwitchingFlow(true)} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -565,10 +596,12 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
 
 function FlowTypeSelector({
   onSelect,
+  onCancel,
   detectedHint,
   isDetecting,
 }: {
   onSelect: (ft: string) => void;
+  onCancel?: () => void;
   detectedHint: string | null;
   isDetecting: boolean;
 }) {
@@ -576,10 +609,14 @@ function FlowTypeSelector({
 
   return (
     <div className="bg-gray-800 rounded-lg p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-gray-200">请选择流派</h2>
+      <h2 className="text-lg font-semibold text-gray-200">选择流派</h2>
       {isDetecting ? (
         <div className="text-gray-400 text-sm">
           正在获取角色数据... 如果无法自动识别，请手动选择流派。
+        </div>
+      ) : onCancel ? (
+        <div className="text-gray-400 text-sm">
+          请选择要切换的流派：
         </div>
       ) : (
         <div className="text-gray-400 text-sm">
@@ -600,12 +637,22 @@ function FlowTypeSelector({
           检测到心法配置，可能是 {detectedHint} 流派。
         </div>
       )}
-      <button
-        onClick={() => onSelect(selected)}
-        className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
-      >
-        确认并查看调号建议
-      </button>
+      <div className="flex gap-2">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition font-medium"
+          >
+            取消
+          </button>
+        )}
+        <button
+          onClick={() => onSelect(selected)}
+          className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium"
+        >
+          确认并查看调号建议
+        </button>
+      </div>
     </div>
   );
 }
@@ -1275,7 +1322,7 @@ function generateRecommendations(ctx: RecContext): Recommendation[] {
 /*  View                                                                */
 /* ------------------------------------------------------------------ */
 
-function TuningReportView({ data }: { data: TuningReportData }) {
+function TuningReportView({ data, onSwitchFlow }: { data: TuningReportData; onSwitchFlow?: () => void }) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case '完美': return 'text-green-400';
@@ -1309,9 +1356,20 @@ function TuningReportView({ data }: { data: TuningReportData }) {
       {/* Header */}
       {(data.characterName || data.flowType) && (
         <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-lg font-semibold text-gray-200">
-            👤 {data.characterName || '未知角色'}
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-200">
+              👤 {data.characterName || '未知角色'}
+            </h2>
+            <button
+              onClick={onSwitchFlow}
+              className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition inline-flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              切换
+            </button>
+          </div>
           <div className="text-sm text-gray-400 mt-1">
             {data.flowType} · {data.version}
           </div>
@@ -1320,7 +1378,7 @@ function TuningReportView({ data }: { data: TuningReportData }) {
 
       {/* 三率概览 */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">📊 三率概览（实际）</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mb-4 inline-flex items-center gap-1.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> 三率概览（实际）</h2>
         <div className="grid grid-cols-3 gap-4 mb-4">
           {data.rates.map((rate, index) => {
             const isOverflow = rate.name === '会意率(实际)' && rate.value > 74;
@@ -1376,7 +1434,7 @@ function TuningReportView({ data }: { data: TuningReportData }) {
 
       {/* 套装状态 */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">🎯 套装</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mb-4 inline-flex items-center gap-1.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" /></svg> 套装</h2>
         <div className={`p-3 rounded-lg ${data.suitStatus.isMatch ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
           <div className="flex justify-between">
             <span className="text-gray-400 text-sm">推荐: {data.suitStatus.recommended}</span>
@@ -1451,7 +1509,7 @@ function TuningReportView({ data }: { data: TuningReportData }) {
 
       {/* 神力词条 */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">✨ 神力词条统计</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mb-4 inline-flex items-center gap-1.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg> 神力词条统计</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {data.divineAffixes.map((affix, index) => (
             <div key={index} className={`p-3 rounded-lg ${getStatusBg(affix.status)}`}>
@@ -1488,7 +1546,7 @@ function TuningReportView({ data }: { data: TuningReportData }) {
 
       {/* 装备分析 */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">🛡️ 装备分析</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mb-4 inline-flex items-center gap-1.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> 装备分析</h2>
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {data.equipmentAnalysis.map((equip, index) => {
             const leftSlots = ['主武器', '副武器', '环', '佩'];
@@ -1549,7 +1607,7 @@ function TuningReportView({ data }: { data: TuningReportData }) {
 
       {/* 调律建议 */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">💡 调律建议</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mb-4 inline-flex items-center gap-1.5"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> 调律建议</h2>
         {data.recommendations.length > 0 ? (
           <div className="space-y-3">
             {data.recommendations.map((rec, index) => (
