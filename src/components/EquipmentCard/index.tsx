@@ -189,6 +189,7 @@ const formatValue = (value: number, attrName: string): string => {
               return (
                 <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
                   <div className="flex items-center gap-1 min-w-0">
+                    {isMax && <span className="text-amber-400 text-[9px] mr-0.5">荐</span>}
                     <span className="text-gray-300 text-[11px] truncate">{attr.name}</span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">

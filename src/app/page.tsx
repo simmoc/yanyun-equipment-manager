@@ -941,7 +941,7 @@ export default function Home() {
                 关闭
               </button>
             </div>
-            <TuningAssistantReport equipments={equipments} plan={selectedPlan} rolePanelData={rolePanelData} />
+            <TuningAssistantReport equipments={equipments} plan={selectedPlan} rolePanelData={rolePanelData} xinfaNameMap={Object.fromEntries(Object.entries(configData?.xinfa_data || {}).map(([k, v]) => [k, v.name]))} />
           </div>
         </div>
       )}
