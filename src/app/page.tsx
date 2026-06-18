@@ -608,7 +608,6 @@ export default function Home() {
                       <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                       {isRefreshing ? '刷新中...' : '刷新数据'}
                     </Button>
-
                     <Button
                       variant="outline"
                       size="sm"

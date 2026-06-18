@@ -196,7 +196,7 @@ const formatValue = (value: number, attrName: string): string => {
               const isMax = attr.is_main;
               const affixColor = getScoreColor(rate);
               return (
-                <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
+                <div key={index} className={`flex items-center justify-between px-1.5 py-1 rounded ${rate >= 95 ? 'bg-green-500/20' : rate >= 80 ? 'bg-blue-500/20' : rate >= 60 ? 'bg-gray-700/30' : 'bg-gray-700/20'}`}>
                   <div className="flex items-center gap-1 min-w-0">
                     {isMax && <span className="text-amber-400 text-[9px] mr-0.5">荐</span>}
                     <span className={`${affixColor} text-[11px] truncate`}>{attr.name}</span>
