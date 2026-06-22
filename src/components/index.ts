@@ -12,3 +12,4 @@ export * from './TuningAssistantReport';
 export * from './QRCodeAuthModal';
 export * from './SelectRoleModal';
 export * from './Toast';
+export * from './DPSGraduationPanel';
