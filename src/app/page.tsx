@@ -17,7 +17,8 @@ import {
   TuningAssistantReport,
   QRCodeAuthModal,
   SelectRoleModal,
-  Toast
+  Toast,
+  DPSGraduationPanel,
 } from '@/components';
 
 export default function Home() {
@@ -847,6 +848,11 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          <DPSGraduationPanel
+            rolePanelData={rolePanelData}
+            selectedPlan={selectedPlan}
+          />
         </div>
       ) : (
         <div className="text-center py-12">
