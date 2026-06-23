@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: '燕云十六声装备毕业率管理器',
@@ -13,7 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <TooltipProvider delayDuration={300}>
+          {children}
+        </TooltipProvider>
+        <Toaster richColors position="top-right" />
+      </body>
     </html>
   );
 }
