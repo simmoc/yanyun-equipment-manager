@@ -44,6 +44,7 @@ def main():
     # 配置文件路径
     equip_file = 'tools/config_data/equip_data.json'
     suffix_file = 'tools/config_data/suffix_data.json'
+    xinfa_file = 'tools/config_data/xinfa_data.json'
     
     # 图片保存目录
     img_dir = 'img'

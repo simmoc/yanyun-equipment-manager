@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { GameRole } from '@/types';
+import { fetchNetEaseRoles } from '@/lib/neteaseClient';
 
 interface AuthCache {
   cookies: any;
@@ -80,14 +81,7 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
 
   const validateCache = async (cache: AuthCache): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/roles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ cookies: cache.cookies, loginToken: cache.loginToken })
-      });
-      const result = await response.json();
+      const result = await fetchNetEaseRoles(cache.cookies, cache.loginToken);
       return result.success && result.data?.roles?.length > 0;
     } catch (error) {
       return false;
@@ -174,15 +168,7 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
       setError('');
       setStep('loading');
       
-      const response = await fetch('/api/auth/roles', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ cookies, loginToken })
-      });
-
-      const result = await response.json();
+      const result = await fetchNetEaseRoles(cookies, loginToken);
 
       if (result.success) {
         const rolesList = result.data.roles;

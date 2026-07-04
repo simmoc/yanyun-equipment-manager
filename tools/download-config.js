@@ -3,23 +3,18 @@ const path = require('path');
 const https = require('https');
 
 const configDir = path.join(__dirname, 'config_data');
-const files = [
-  {
-    url: 'https://s.166.net/config/ds_h72/xinfa_data.json',
-    filename: 'xinfa_data.json'
-  },
-  {
-    url: 'https://s.166.net/config/ds_h72/slot_data.json',
-    filename: 'slot_data.json'
-  }
-];
+const baseUrl = 'https://s.166.net/config/ds_h72';
 
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(destPath);
+    const tmpPath = `${destPath}.tmp`;
+    const file = fs.createWriteStream(tmpPath);
     
     const request = https.get(url, (response) => {
       if (response.statusCode !== 200) {
+        response.resume();
+        file.close();
+        fs.unlink(tmpPath, () => {});
         reject(new Error(`Failed to download: ${response.statusCode}`));
         return;
       }
@@ -28,32 +23,45 @@ function downloadFile(url, destPath) {
       
       file.on('finish', () => {
         file.close();
+        fs.renameSync(tmpPath, destPath);
         resolve();
       });
     });
     
     request.on('error', (err) => {
-      fs.unlink(destPath, () => {});
+      fs.unlink(tmpPath, () => {});
       reject(err);
     });
   });
 }
 
 async function main() {
+  fs.mkdirSync(configDir, { recursive: true });
+  const files = process.argv.slice(2);
+  const filenames = files.length
+    ? files.map((file) => path.basename(file).replace(/\.json$/i, '') + '.json')
+    : fs.readdirSync(configDir)
+      .filter((file) => file.endsWith('.json') && !file.startsWith('flow_'))
+      .sort();
+
   console.log('开始下载配置文件...\n');
+  let failed = 0;
   
-  for (const file of files) {
-    const destPath = path.join(configDir, file.filename);
-    console.log(`正在下载: ${file.url}`);
+  for (const filename of filenames) {
+    const url = `${baseUrl}/${filename}`;
+    const destPath = path.join(configDir, filename);
+    console.log(`正在下载: ${url}`);
     
     try {
-      await downloadFile(file.url, destPath);
-      console.log(`✓ ${file.filename} 下载成功！保存到: ${destPath}\n`);
+      await downloadFile(url, destPath);
+      console.log(`✓ ${filename} 下载成功！保存到: ${destPath}\n`);
     } catch (error) {
-      console.error(`✗ ${file.filename} 下载失败:`, error.message);
+      failed += 1;
+      console.error(`✗ ${filename} 下载失败:`, error.message);
     }
   }
   
+  if (failed > 0) process.exitCode = 1;
   console.log('所有文件下载完成！');
 }
 

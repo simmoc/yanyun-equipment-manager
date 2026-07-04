@@ -4,36 +4,26 @@ import path from 'path';
 
 const CONFIG_DIR = path.join(process.cwd(), 'tools', 'config_data');
 
-function readJsonFile(filename: string) {
-  try {
-    const filepath = path.join(CONFIG_DIR, filename);
-    const data = fs.readFileSync(filepath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error(`Error reading ${filename}:`, error);
-    return null;
-  }
+export const dynamic = 'force-dynamic';
+
+function readConfigData() {
+  return Object.fromEntries(
+    fs.readdirSync(CONFIG_DIR)
+      .filter((filename) => filename.endsWith('.json'))
+      .sort()
+      .map((filename) => {
+        const key = path.basename(filename, '.json');
+        const data = fs.readFileSync(path.join(CONFIG_DIR, filename), 'utf-8');
+        return [key, JSON.parse(data)];
+      })
+  );
 }
 
 export async function GET() {
   try {
-    const equipData = readJsonFile('equip_data.json');
-    const suffixData = readJsonFile('suffix_data.json');
-    const affixData = readJsonFile('affix_data.json');
-    const schoolData = readJsonFile('school_data.json');
-    const xinfaData = readJsonFile('xinfa_data.json');
-    const slotData = readJsonFile('slot_data.json');
-
     return NextResponse.json({
       success: true,
-      data: {
-        equip_data: equipData,
-        suffix_data: suffixData,
-        affix_data: affixData,
-        school_data: schoolData,
-        xinfa_data: xinfaData,
-        slot_data: slotData
-      }
+      data: readConfigData()
     });
   } catch (error) {
     console.error('Error loading config data:', error);

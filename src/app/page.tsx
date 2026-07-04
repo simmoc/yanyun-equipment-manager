@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
-import { getGraduationLevel, getGraduationColor } from '@/lib/graduation';
 import { exportLocalData, importLocalData } from '@/lib/localStore';
 import { getDataSource } from '@/lib/dataSource';
 import { parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
+import { fetchNetEaseRoleInfo, fetchNetEaseRolePanel } from '@/lib/neteaseClient';
 import { useAppData, useConfigData } from '@/hooks';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
   QRCodeAuthModal,
   SelectRoleModal,
   DPSGraduationPanel,
+  GraduationResultCard,
 } from '@/components';
 import {
   LogIn, LogOut, Share2, RefreshCw, Trash2, Download, Upload, Bot,
@@ -105,7 +106,6 @@ export default function Home() {
   const [selectedGameRoleId, setSelectedGameRoleId] = useState<string>('');
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
   const prevAuthRef = useRef(authCredentials);
 
   useEffect(() => {
@@ -132,9 +132,7 @@ export default function Home() {
     try {
       const response = await fetch(`/api/graduation?characterId=${selectedCharacter.id}`);
       const data = await response.json();
-      if (data.success) {
-        setGraduationResults(data.results);
-      }
+      if (data.success) setGraduationResults(data.results);
     } catch (error) {
       console.error('计算毕业率失败:', error);
     }
@@ -145,8 +143,12 @@ export default function Home() {
     try {
       const ds = getDataSource();
       await ds.deleteCharacter(selectedCharacter.id);
+      const chars = await fetchCharacters();
+      setSelectedCharacter(chars[0] || null);
+      toast.success('角色已删除');
     } catch (error) {
       console.error('删除角色失败:', error);
+      toast.error('删除角色失败');
     }
   };
 
@@ -163,6 +165,7 @@ export default function Home() {
         suit_type: (newEquipmentData.suitType || undefined) as SuitType | undefined
       });
       setShowNewEquipmentModal(false);
+      await fetchPlansAndEquipments();
       setNewEquipmentData({
         slot: EQUIPMENT_SLOTS[0],
         name: '',
@@ -171,8 +174,10 @@ export default function Home() {
         isWearing: false,
         suitType: ''
       });
+      toast.success('装备已创建');
     } catch (error) {
       console.error('创建装备失败:', error);
+      toast.error('创建装备失败');
     }
   };
 
@@ -180,8 +185,11 @@ export default function Home() {
     try {
       const ds = getDataSource();
       await ds.deleteEquipment(equipmentId);
+      await fetchPlansAndEquipments();
+      toast.success('装备已删除');
     } catch (error) {
       console.error('删除装备失败:', error);
+      toast.error('删除装备失败');
     }
   };
 
@@ -189,8 +197,10 @@ export default function Home() {
     try {
       const ds = getDataSource();
       await ds.updateEquipment(equipment.id, { is_wearing: !equipment.is_wearing });
+      await fetchPlansAndEquipments();
     } catch (error) {
       console.error('更新装备失败:', error);
+      toast.error('更新装备失败');
     }
   };
 
@@ -221,8 +231,11 @@ export default function Home() {
       });
       setShowEditEquipmentModal(false);
       setEditingEquipment(null);
+      await fetchPlansAndEquipments();
+      toast.success('装备已更新');
     } catch (error) {
       console.error('更新装备失败:', error);
+      toast.error('更新装备失败');
     }
   };
 
@@ -230,29 +243,16 @@ export default function Home() {
     if (!selectedCharacter || !authCredentials) return;
     setIsRefreshing(true);
     try {
-      const [roleInfoRes, panelRes] = await Promise.all([
-        fetch('/api/auth/role-info', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roleId: selectedCharacter.role_id,
-            server: selectedCharacter.server,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
-        }),
-        fetch('/api/auth/role-panel', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roleId: selectedCharacter.role_id,
-            server: selectedCharacter.server,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
-        })
+      const roleRequest = {
+        roleId: selectedCharacter.role_id || '',
+        server: selectedCharacter.server || '',
+        cookies: authCredentials.cookies,
+        loginToken: authCredentials.loginToken
+      };
+      const [roleInfoResult, panelResult] = await Promise.all([
+        fetchNetEaseRoleInfo(roleRequest),
+        fetchNetEaseRolePanel(roleRequest)
       ]);
-
-      const roleInfoResult = await roleInfoRes.json();
-      const panelResult = await panelRes.json();
 
       if (roleInfoResult.needReauth || panelResult.needReauth) {
         clearAuthCredentials();
@@ -271,9 +271,7 @@ export default function Home() {
         authData.roleInfo = roleInfoResult.data.roleInfo;
         authData.reportToken = roleInfoResult.data.reportToken;
         authData.equipments = equipmentsList;
-        if (panelResult.success && panelResult.data) {
-          authData.rolePanelData = panelResult.data;
-        }
+        if (panelResult.success && panelResult.data) authData.rolePanelData = panelResult.data;
         localStorage.setItem(authKey, JSON.stringify(authData));
 
         setEquipments(equipmentsList);
@@ -281,11 +279,8 @@ export default function Home() {
           const panelData = panelResult.data;
           if (!panelData['combat_plan.xinfa_info'] && !panelData.xinfa_info) {
             const ri = roleInfoResult.data.roleInfo;
-            if (ri['combat_plan.xinfa_info']) {
-              panelData['combat_plan.xinfa_info'] = ri['combat_plan.xinfa_info'];
-            } else if (ri.xinfa_info) {
-              panelData['combat_plan.xinfa_info'] = ri.xinfa_info;
-            }
+            if (ri['combat_plan.xinfa_info']) panelData['combat_plan.xinfa_info'] = ri['combat_plan.xinfa_info'];
+            else if (ri.xinfa_info) panelData['combat_plan.xinfa_info'] = ri.xinfa_info;
             if (ri['base.nickname']) panelData['base.nickname'] = ri['base.nickname'];
             if (ri['base.level']) panelData['base.level'] = ri['base.level'];
           }
@@ -314,13 +309,12 @@ export default function Home() {
           level: selectedCharacter.level,
           server_name: selectedCharacter.server_name,
         },
-        equipments: equipments,
-        rolePanelData: rolePanelData,
+        equipments,
+        rolePanelData,
         createdAt: new Date().toISOString()
       };
       const { id: shareId } = await ds.createShare(snapshot);
-      const shareUrl = `${window.location.origin}/share/${shareId}`;
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(`${window.location.origin}/share/${shareId}`);
       toast.success('分享链接已复制到剪贴板');
     } catch (error) {
       console.error('创建分享失败:', error);
@@ -373,7 +367,6 @@ export default function Home() {
 
   const handleGameRoleSelect = async (gameRoleId: string) => {
     setSelectedGameRoleId(gameRoleId);
-
     if (!gameRoleId || !authCredentials) return;
 
     const gameRole = availableGameRoles.find(r => r.roleId === gameRoleId);
@@ -389,32 +382,16 @@ export default function Home() {
     setIsCreatingCharacter(true);
     try {
       const ds = getDataSource();
-
-      const [roleInfoResponse, panelResponse] = await Promise.all([
-        fetch('/api/auth/role-info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roleId: gameRole.roleId,
-            server: gameRole.server,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
-        }),
-        fetch('/api/auth/role-panel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roleId: gameRole.roleId,
-            server: gameRole.server,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
-        })
+      const roleRequest = {
+        roleId: gameRole.roleId,
+        server: gameRole.server,
+        cookies: authCredentials.cookies,
+        loginToken: authCredentials.loginToken
+      };
+      const [roleInfoResult, panelResult] = await Promise.all([
+        fetchNetEaseRoleInfo(roleRequest),
+        fetchNetEaseRolePanel(roleRequest)
       ]);
-
-      const roleInfoResult = await roleInfoResponse.json();
-      const panelResult = await panelResponse.json();
 
       if (roleInfoResult.needReauth || panelResult.needReauth) {
         clearAuthCredentials();
@@ -429,7 +406,6 @@ export default function Home() {
       }
 
       const rolePanelData = panelResult.success ? panelResult.data : null;
-
       const character = await ds.createCharacter(gameRole.nick, {
         icon: gameRole.icon,
         level: gameRole.level,
@@ -448,7 +424,7 @@ export default function Home() {
         loginToken: authCredentials.loginToken,
         roleInfo: roleInfoResult.data.roleInfo,
         reportToken: roleInfoResult.data.reportToken,
-        rolePanelData: rolePanelData,
+        rolePanelData,
         equipments: equipmentsList
       }));
 
@@ -456,12 +432,7 @@ export default function Home() {
       setSelectedGameRoleId('');
       await fetchCharacters();
       await fetchPlansAndEquipments();
-
-      toast.success(
-        equipmentsList.length > 0
-          ? `角色绑定成功！已加载 ${equipmentsList.length} 件装备`
-          : '角色绑定成功！'
-      );
+      toast.success(equipmentsList.length > 0 ? `角色绑定成功！已加载 ${equipmentsList.length} 件装备` : '角色绑定成功！');
     } catch (error) {
       console.error('创建角色失败:', error);
       clearAuthCredentials();
@@ -476,7 +447,6 @@ export default function Home() {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-
       if (isLocal) {
         importLocalData(data as Parameters<typeof importLocalData>[0]);
         const { getCharactersLocal } = await import('@/lib/localStore');
@@ -496,7 +466,6 @@ export default function Home() {
   };
 
   const getAffixNames = (index?: number) => getAffixNamesBase(index, affixMode);
-
   const getSuitNames = () => {
     if (!configData?.suffix_data) return [];
     return Object.values(configData.suffix_data).map(s => s.name).filter((name, index, self) => self.indexOf(name) === index).sort();
@@ -508,8 +477,6 @@ export default function Home() {
     if (slotFilter !== '全部' && e.slot !== slotFilter) return false;
     return true;
   });
-
-  const currentGraduation = graduationResults.find(r => r.plan_id === selectedPlan?.id);
 
   if (isLoading) {
     return (
@@ -523,176 +490,104 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-primary">
-          燕云十六声装备毕业率管理器
-        </h1>
-        <Button variant="outline" onClick={() => setShowAboutModal(true)}>
-          关于本网站
-        </Button>
-      </header>
+    <div className="min-h-screen bg-background">
+      <main className="app-shell">
+        <header className="app-header">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-emerald-300/80">Where Winds Meet</div>
+            <h1 className="text-2xl md:text-3xl font-bold text-emerald-300">燕云十六声装备毕业率管理器</h1>
+          </div>
+          <Button variant="outline" onClick={() => setShowAboutModal(true)}>关于本网站</Button>
+        </header>
 
-      {/* Auth & Character Bar */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          {!authCredentials ? (
-            <div className="flex items-center gap-4 w-full">
-              <span className="text-muted-foreground">请先扫码登录</span>
-              <Button onClick={() => setShowQRCodeAuth(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                <LogIn className="w-4 h-4 mr-2" />扫码登录
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 w-full flex-wrap">
-              <Badge variant="outline" className="border-primary/30 text-primary gap-1">
-                <Check className="w-3 h-3" />已登录
-              </Badge>
-
-              {isCreatingCharacter && (
-                <div className="flex items-center gap-2 text-blue-400">
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400" />
-                  创建角色中...
-                </div>
-              )}
-
-              {selectedCharacter && (
-                <>
-                  <Separator orientation="vertical" className="h-10" />
-                  <div className="flex items-center gap-3">
-                    {selectedCharacter.icon && (
-                      <img
-                        src={selectedCharacter.icon}
-                        alt={selectedCharacter.name}
-                        className="w-12 h-12 rounded-full border-2 border-primary"
-                      />
-                    )}
-                    <div>
-                      <div className="font-medium">{selectedCharacter.name}</div>
-                      {selectedCharacter.level && (
-                        <div className="text-sm text-muted-foreground">等级 {selectedCharacter.level}</div>
-                      )}
-                      {selectedCharacter.server_name && (
-                        <div className="text-sm text-muted-foreground">{selectedCharacter.server_name}</div>
-                      )}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            {!authCredentials ? (
+              <div className="flex items-center gap-4 w-full">
+                <span className="text-muted-foreground">请先扫码登录</span>
+                <Button onClick={() => setShowQRCodeAuth(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <LogIn className="w-4 h-4 mr-2" />扫码登录
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 w-full flex-wrap">
+                <Badge variant="outline" className="border-primary/30 text-primary gap-1">
+                  <Check className="w-3 h-3" />已登录
+                </Badge>
+                {isCreatingCharacter && (
+                  <div className="flex items-center gap-2 text-blue-400">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400" />
+                    创建角色中...
+                  </div>
+                )}
+                {selectedCharacter && (
+                  <>
+                    <Separator orientation="vertical" className="h-10" />
+                    <div className="flex items-center gap-3">
+                      {selectedCharacter.icon && <img src={selectedCharacter.icon} alt={selectedCharacter.name} className="w-12 h-12 rounded-full border-2 border-primary" />}
+                      <div>
+                        <div className="font-medium">{selectedCharacter.name}</div>
+                        {selectedCharacter.level && <div className="text-sm text-muted-foreground">等级 {selectedCharacter.level}</div>}
+                        {selectedCharacter.server_name && <div className="text-sm text-muted-foreground">{selectedCharacter.server_name}</div>}
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => setShowSelectRoleModal(true)} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10" title="切换角色">
+                        <ArrowUpDown className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowSelectRoleModal(true)}
-                      className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                      title="切换角色"
-                    >
-                      <ArrowUpDown className="w-4 h-4" />
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
+                      <Button variant="outline" size="sm" onClick={handleShareCharacter} className="border-primary/30 text-primary hover:bg-primary/10">
+                        <Share2 className="w-4 h-4 mr-1.5" />分享角色
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || !authCredentials} className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
+                        <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? '刷新中...' : '刷新数据'}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowQRCodeAuth(true)} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
+                        <LogOut className="w-4 h-4 mr-1.5" />退出账号
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleDeleteCharacter} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
+                        <Trash2 className="w-4 h-4 mr-1.5" />删除角色
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setShowExportModal(true)} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
+                        <Download className="w-4 h-4 mr-1.5" />导出/导入
+                      </Button>
+                      <Button size="sm" onClick={() => setShowTuningAssistant(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
+                        <Bot className="w-4 h-4 mr-1.5" />调号
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedCharacter ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="surface-panel filter-panel">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="filter-group">
+                    <span className="filter-label">范围</span>
+                    {['可用', '全部', '穿着'].map(filter => (
+                      <button key={filter} onClick={() => setEquipmentFilter(filter as any)} className={`btn ${equipmentFilter === filter ? 'btn-primary' : 'btn-secondary'}`}>
+                        {filter}
+                      </button>
+                    ))}
                   </div>
+                  <button onClick={() => setShowNewEquipmentModal(true)} className="btn btn-primary">新建装备</button>
+                </div>
+                <div className="filter-group mt-3 border-t border-gray-700/70 pt-3">
+                  <span className="filter-label">部位</span>
+                  <button onClick={() => setSlotFilter('全部')} className={`btn ${slotFilter === '全部' ? 'btn-primary' : 'btn-secondary'}`}>全部</button>
+                  {EQUIPMENT_SLOTS.map(slot => (
+                    <button key={slot} onClick={() => setSlotFilter(slot)} className={`btn ${slotFilter === slot ? 'btn-primary' : 'btn-secondary'}`}>{slot}</button>
+                  ))}
+                </div>
+              </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleShareCharacter}
-                      className="border-primary/30 text-primary hover:bg-primary/10"
-                    >
-                      <Share2 className="w-4 h-4 mr-1.5" />分享角色
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRefresh}
-                      disabled={isRefreshing || !authCredentials}
-                      className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                      {isRefreshing ? '刷新中...' : '刷新数据'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowQRCodeAuth(true)}
-                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    >
-                      <LogOut className="w-4 h-4 mr-1.5" />退出账号
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDeleteCharacter}
-                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1.5" />删除角色
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowExportModal(true)}
-                      className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                    >
-                      <Download className="w-4 h-4 mr-1.5" />导出/导入
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      onClick={() => setShowTuningAssistant(true)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
-                    >
-                      <Bot className="w-4 h-4 mr-1.5" />调号
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {selectedCharacter ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Equipment Grid */}
-          <div className="lg:col-span-2">
-            {/* Filter Tabs */}
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
-              {['可用', '全部', '穿着'].map(filter => (
-                <Button
-                  key={filter}
-                  variant={equipmentFilter === filter ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setEquipmentFilter(filter as any)}
-                >
-                  {filter}
-                </Button>
-              ))}
-
-              <Separator orientation="vertical" className="h-8 hidden sm:block" />
-
-              {EQUIPMENT_SLOTS.map(slot => (
-                <Button
-                  key={slot}
-                  variant={slotFilter === slot ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSlotFilter(slot)}
-                >
-                  {slot}
-                </Button>
-              ))}
-
-              <Button
-                variant={slotFilter === '全部' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSlotFilter('全部')}
-              >
-                全部
-              </Button>
-            </div>
-
-            {/* Equipment Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
-              {filteredEquipments
-                .sort((a, b) => {
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+                {filteredEquipments.sort((a, b) => {
                   const slotOrder = ['剑', '枪', '冠胄', '胸甲', '弓', '环', '佩', '胫甲', '腕甲', '射决'];
                   const aIndex = slotOrder.indexOf(a.slot);
                   const bIndex = slotOrder.indexOf(b.slot);
@@ -700,8 +595,7 @@ export default function Home() {
                   if (aIndex === -1) return 1;
                   if (bIndex === -1) return -1;
                   return aIndex - bIndex;
-                })
-                .map(equipment => (
+                }).map(equipment => (
                   <EquipmentCard
                     key={equipment.id}
                     equipment={equipment}
@@ -713,73 +607,42 @@ export default function Home() {
                     onEdit={() => handleEditEquipment(equipment)}
                   />
                 ))}
+              </div>
             </div>
-          </div>
 
-          {/* Right: Panel + DPS */}
-          <div className="space-y-4">
-            {/* Character Stats Panel */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-primary">角色属性</CardTitle>
-              </CardHeader>
-              <CardContent>
+            <div className="space-y-4">
+              <div className="surface-panel p-3">
+                <h2 className="text-base font-bold mb-2 text-green-400">角色属性</h2>
                 {isLoadingRolePanel ? (
                   <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary mr-2" />
-                    <span className="text-muted-foreground text-sm">加载中...</span>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-400 mr-2" />
+                    <span className="text-gray-400 text-sm">加载中...</span>
                   </div>
                 ) : rolePanelData ? (
                   <div className="space-y-3">
-                    {/* 心法 */}
-                    {(() => {
-                      const xinfaSource = rolePanelData?.['combat_plan.xinfa_info'] ?? rolePanelData?.xinfa_info;
-                      if (!xinfaSource || typeof xinfaSource !== 'object') return null;
-                      return (
-                        <div className="bg-surface-section rounded-lg p-2">
-                          <div className="text-sm font-medium mb-1.5 text-data-xinfa">心法</div>
-                          <div className="grid grid-cols-4 gap-1.5">
-                            {Object.entries(xinfaSource).map(([id, xinfa]) => {
-                              const xinfaConfig = getXinfaInfo(Number(id) || 0);
-                              const xinfaObj = xinfa as any;
-                              const rank = Number(xinfaObj?.rank) || 0;
-                              if (!xinfaConfig) return null;
-                              return (
-                                <div
-                                  key={id}
-                                  className="relative w-[60px] h-[74px] rounded-lg overflow-hidden shadow"
-                                  style={{
-                                    backgroundImage: `url(${xinfaConfig.bg})`,
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center',
-                                  }}
-                                >
-                                  <div className="absolute inset-0 bg-black/30" />
-                                  <img
-                                    src={xinfaConfig.image1}
-                                    alt={xinfaConfig.name}
-                                    className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-8 rounded"
-                                    onError={(e) => { e.currentTarget.src = '/img/default_xinfa.png'; }}
-                                  />
-                                  <div className="absolute bottom-4 left-0 right-0 text-[9px] text-center text-white truncate px-0.5">
-                                    {xinfaConfig.name}
-                                  </div>
-                                  <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[2px]">
-                                    {Array.from({ length: 6 }).map((_, i) => (
-                                      <span key={i} className={`w-1 h-1 rounded-full ${i < rank ? 'bg-yellow-400' : 'bg-white/20'}`} />
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* 三率属性 */}
-                    <div className="bg-surface-section rounded-lg p-2">
-                      <div className="text-sm font-medium mb-1 text-data-rate">三率属性</div>
+                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                      <div className="text-sm font-medium mb-1.5 text-orange-300">心法</div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {Object.entries(rolePanelData?.['combat_plan.xinfa_info'] ?? rolePanelData?.xinfa_info ?? {}).map(([id, xinfa]) => {
+                          const xinfaConfig = getXinfaInfo(Number(id) || 0);
+                          const xinfaObj = xinfa as any;
+                          const rank = Number(xinfaObj?.rank) || 0;
+                          if (!xinfaConfig) return null;
+                          return (
+                            <div key={id} className="relative w-[60px] h-[74px] rounded-lg overflow-hidden shadow" style={{ backgroundImage: `url(${xinfaConfig.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                              <div className="absolute inset-0 bg-black/30" />
+                              <img src={xinfaConfig.image1} alt={xinfaConfig.name} className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-8 rounded" onError={(e) => { e.currentTarget.src = '/img/default_xinfa.png'; }} />
+                              <div className="absolute bottom-4 left-0 right-0 text-[9px] text-center text-white truncate px-0.5">{xinfaConfig.name}</div>
+                              <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[2px]">
+                                {Array.from({ length: 6 }).map((_, i) => <span key={i} className={`w-1 h-1 rounded-full ${i < rank ? 'bg-yellow-400' : 'bg-gray-500/70'}`} />)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                      <div className="text-sm font-medium mb-1 text-yellow-300">三率属性</div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                         {[
                           ['精准概率', rolePanelData.ACR_PROB, false],
@@ -792,49 +655,45 @@ export default function Home() {
                           ['直接会意', rolePanelData.DIRECT_BASH_PROB, false],
                         ].map(([label, value, highlight]) => (
                           <div key={label as string} className="flex justify-between items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{label as string}</span>
-                            <span className={`text-sm font-medium ${highlight ? 'text-primary' : ''}`}>{value as string}%</span>
+                            <span className="text-xs text-gray-400">{label as string}</span>
+                            <span className={`text-sm font-medium ${highlight ? 'text-green-300' : ''}`}>{value as string}%</span>
                           </div>
                         ))}
                       </div>
                     </div>
-
-                    {/* 攻击属性 */}
-                    <div className="bg-surface-section rounded-lg p-2">
-                      <div className="text-sm font-medium mb-1 text-data-attack">攻击属性</div>
+                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                      <div className="text-sm font-medium mb-1 text-green-300">攻击属性</div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                         {[
-                          { label: '最小外功', value: rolePanelData.MIN_W_ATK },
-                          { label: '最大外功', value: rolePanelData.MAX_W_ATK },
-                          { label: '最小鸣金', value: rolePanelData.MIN_PRO_ATK_A },
-                          { label: '最大鸣金', value: rolePanelData.MAX_PRO_ATK_A },
-                          { label: '最小牵丝', value: rolePanelData.MIN_PRO_ATK_B },
-                          { label: '最大牵丝', value: rolePanelData.MAX_PRO_ATK_B },
-                          { label: '最小裂石', value: rolePanelData.MIN_PRO_ATK_C },
-                          { label: '最大裂石', value: rolePanelData.MAX_PRO_ATK_C },
-                          { label: '最小破竹', value: rolePanelData.MIN_PRO_ATK_E },
-                          { label: '最大破竹', value: rolePanelData.MAX_PRO_ATK_E },
-                          { label: '最小无相', value: rolePanelData.MIN_ACTIVE_PRO_ATK },
-                          { label: '最大无相', value: rolePanelData.MAX_ACTIVE_PRO_ATK },
+                          { label: '最小外功', field: 'MIN_W_ATK', value: rolePanelData.MIN_W_ATK },
+                          { label: '最大外功', field: 'MAX_W_ATK', value: rolePanelData.MAX_W_ATK },
+                          { label: '最小鸣金', field: 'MIN_PRO_ATK_A', value: rolePanelData.MIN_PRO_ATK_A },
+                          { label: '最大鸣金', field: 'MAX_PRO_ATK_A', value: rolePanelData.MAX_PRO_ATK_A },
+                          { label: '最小牵丝', field: 'MIN_PRO_ATK_B', value: rolePanelData.MIN_PRO_ATK_B },
+                          { label: '最大牵丝', field: 'MAX_PRO_ATK_B', value: rolePanelData.MAX_PRO_ATK_B },
+                          { label: '最小裂石', field: 'MIN_PRO_ATK_C', value: rolePanelData.MIN_PRO_ATK_C },
+                          { label: '最大裂石', field: 'MAX_PRO_ATK_C', value: rolePanelData.MAX_PRO_ATK_C },
+                          { label: '最小破竹', field: 'MIN_PRO_ATK_E', value: rolePanelData.MIN_PRO_ATK_E },
+                          { label: '最大破竹', field: 'MAX_PRO_ATK_E', value: rolePanelData.MAX_PRO_ATK_E },
+                          { label: '最小无相', field: 'MIN_ACTIVE_PRO_ATK', value: rolePanelData.MIN_ACTIVE_PRO_ATK },
+                          { label: '最大无相', field: 'MAX_ACTIVE_PRO_ATK', value: rolePanelData.MAX_ACTIVE_PRO_ATK },
                         ].map(item => (
-                          <div key={item.label} className="flex justify-between items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{item.label}</span>
+                          <div key={item.field} className="flex justify-between items-center gap-1">
+                            <span className="text-xs text-gray-400">{item.label}</span>
                             <span className="text-sm font-medium">{item.value}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-
-                    {/* 防御属性 */}
-                    <div className="bg-surface-section rounded-lg p-2">
-                      <div className="text-sm font-medium mb-1 text-data-defense">防御属性</div>
+                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                      <div className="text-sm font-medium mb-1 text-blue-300">防御属性</div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                         {[
                           ['外攻防御', rolePanelData.W_DEF],
                           ['气血最大值', rolePanelData.hpMax],
                         ].map(([label, value]) => (
                           <div key={label as string} className="flex justify-between items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{label as string}</span>
+                            <span className="text-xs text-gray-400">{label as string}</span>
                             <span className="text-sm font-medium">{value as string}</span>
                           </div>
                         ))}
@@ -842,106 +701,76 @@ export default function Home() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-muted-foreground">
+                  <div className="text-center py-6 text-gray-400">
                     <p className="text-sm">暂无角色面板数据</p>
                     <p className="text-xs mt-1">选择角色后自动获取</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
-            <DPSGraduationPanel
-              rolePanelData={rolePanelData}
-              selectedPlan={selectedPlan}
-              equipments={equipments}
-              xinfaNameMap={Object.fromEntries(Object.entries(configData?.xinfa_data || {}).map(([k, v]) => [k, v.name]))}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <h2 className="text-xl text-muted-foreground mb-4">欢迎使用燕云十六声装备毕业率管理器</h2>
-          <p className="text-muted-foreground/70 mb-6">
-            {!authCredentials
-              ? '请先扫码登录并选择角色开始使用'
-              : '请从上方选择游戏角色开始使用'}
-          </p>
-          {!authCredentials && (
-            <Button onClick={() => setShowQRCodeAuth(true)} size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
-              <LogIn className="w-4 h-4 mr-2" />扫码登录
-            </Button>
-          )}
-        </div>
-      )}
-
-      <NewEquipmentModal
-        isOpen={showNewEquipmentModal}
-        onClose={() => setShowNewEquipmentModal(false)}
-        equipmentData={newEquipmentData}
-        setEquipmentData={setNewEquipmentData}
-        affixMode={affixMode}
-        setAffixMode={setAffixMode}
-        getEquipNames={getEquipNames}
-        getAffixNames={getAffixNames}
-        getSlotFromEquipName={getSlotFromEquipName}
-        onSubmit={handleCreateEquipment}
-      />
-
-      <EditEquipmentModal
-        isOpen={showEditEquipmentModal}
-        onClose={() => setShowEditEquipmentModal(false)}
-        equipment={editingEquipment}
-        equipmentData={editEquipmentData}
-        setEquipmentData={setEditEquipmentData}
-        affixMode={affixMode}
-        setAffixMode={setAffixMode}
-        getEquipNames={getEquipNames}
-        getAffixNames={getAffixNames}
-        getSlotFromEquipName={getSlotFromEquipName}
-        onSubmit={handleUpdateEquipment}
-      />
-
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handleExport}
-        onImport={handleImport}
-      />
-
-      <AboutModal
-        isOpen={showAboutModal}
-        onClose={() => setShowAboutModal(false)}
-      />
-
-      <QRCodeAuthModal
-        isOpen={showQRCodeAuth}
-        onClose={() => setShowQRCodeAuth(false)}
-        onSuccess={handleQRCodeAuthSuccess}
-      />
-
-      <SelectRoleModal
-        isOpen={showSelectRoleModal}
-        onClose={() => setShowSelectRoleModal(false)}
-        roles={availableGameRoles}
-        characters={characters}
-        onSelect={handleBindGameRole}
-        onSelectCharacter={handleSelectCharacter}
-        isLoading={isCreatingCharacter}
-      />
-
-      {showTuningAssistant && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card border rounded-lg p-6 modal-enter max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-primary">大神AI调号助手</h2>
-              <Button variant="outline" onClick={() => setShowTuningAssistant(false)}>
-                关闭
-              </Button>
+              {configData?.flow_config && configData?.flow_rotations && configData?.flow_skills && (
+                <GraduationResultCard
+                  equipments={equipments}
+                  rolePanelData={rolePanelData}
+                  flowConfig={configData.flow_config}
+                  flowRotations={configData.flow_rotations}
+                  flowSkills={configData.flow_skills}
+                  selectedPlan={selectedPlan}
+                />
+              )}
             </div>
-            <TuningAssistantReport equipments={equipments} plan={selectedPlan} rolePanelData={rolePanelData} xinfaNameMap={Object.fromEntries(Object.entries(configData?.xinfa_data || {}).map(([k, v]) => [k, v.name]))} />
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="surface-panel mx-auto max-w-2xl px-6 py-10 text-center">
+            <h2 className="mb-3 text-xl font-semibold text-white">选择角色开始计算</h2>
+            <p className="mb-6 text-sm text-gray-400">
+              {!authCredentials ? '扫码登录后会读取角色列表，并加载装备、面板和毕业率结果。' : '从当前账号绑定的游戏角色中选择一个继续。'}
+            </p>
+            {authCredentials && (
+              <button onClick={() => setShowSelectRoleModal(true)} className="btn btn-primary mx-auto">选择角色</button>
+            )}
+          </div>
+        )}
+
+        <NewEquipmentModal
+          isOpen={showNewEquipmentModal}
+          onClose={() => setShowNewEquipmentModal(false)}
+          equipmentData={newEquipmentData}
+          setEquipmentData={setNewEquipmentData}
+          affixMode={affixMode}
+          setAffixMode={setAffixMode}
+          getEquipNames={getEquipNames}
+          getAffixNames={getAffixNames}
+          getSlotFromEquipName={getSlotFromEquipName}
+          onSubmit={handleCreateEquipment}
+        />
+
+        <EditEquipmentModal
+          isOpen={showEditEquipmentModal}
+          onClose={() => setShowEditEquipmentModal(false)}
+          equipmentData={editEquipmentData}
+          setEquipmentData={setEditEquipmentData}
+          affixMode={affixMode}
+          setAffixMode={setAffixMode}
+          getEquipNames={getEquipNames}
+          getAffixNames={getAffixNames}
+          getSlotFromEquipName={getSlotFromEquipName}
+          onSubmit={handleUpdateEquipment}
+        />
+
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+          onImport={handleImport}
+        />
+
+        <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
+        <QRCodeAuthModal isOpen={showQRCodeAuth} onClose={() => setShowQRCodeAuth(false)} onSuccess={handleQRCodeAuthSuccess} />
+        <SelectRoleModal isOpen={showSelectRoleModal} onClose={() => setShowSelectRoleModal(false)} roles={availableGameRoles} onSelectCharacter={handleSelectCharacter} onBindGameRole={handleBindGameRole} />
+        <DPSGraduationPanel />
+        <Toast />
+      </main>
     </div>
   );
 }

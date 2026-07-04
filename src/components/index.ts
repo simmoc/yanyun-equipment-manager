@@ -13,3 +13,4 @@ export * from './QRCodeAuthModal';
 export * from './SelectRoleModal';
 export * from './Toast';
 export * from './DPSGraduationPanel';
+export { default as GraduationResultCard } from './GraduationResultCard';

@@ -32,6 +32,35 @@ function asRow<T = any>(result: any): T | null {
   return rows[0] || null;
 }
 
+async function updateById(
+  table: 'plans' | 'equipments',
+  id: string,
+  updates: Record<string, any>,
+  allowedFields: readonly string[],
+  jsonFields: readonly string[] = []
+) {
+  const jsonSet = new Set(jsonFields);
+  const fields = Object.keys(updates).filter(field =>
+    allowedFields.includes(field) && updates[field] !== undefined
+  );
+
+  if (fields.length === 0) {
+    throw new Error('No valid fields to update');
+  }
+
+  const assignments = fields.map((field, i) =>
+    `${field} = $${i + 1}${jsonSet.has(field) ? '::jsonb' : ''}`
+  );
+  const params = fields.map(field =>
+    jsonSet.has(field) ? JSON.stringify(updates[field]) : updates[field]
+  );
+  const db = getSql();
+  return asRow(await db(
+    `UPDATE ${table} SET updated_at = CURRENT_TIMESTAMP, ${assignments.join(', ')} WHERE id = $${fields.length + 1} RETURNING *`,
+    [...params, id]
+  ));
+}
+
 export async function checkDatabaseConnection(): Promise<boolean> {
   if (!process.env.DATABASE_URL) return false;
   try {
@@ -197,16 +226,12 @@ export async function createPlan(characterId: string, name: string, flowType: st
 }
 
 export async function updatePlan(planId: string, updates: Record<string, any>) {
-  const db = getSql();
-  const fields = Object.keys(updates);
-  const values = Object.values(updates);
-  let query = 'UPDATE plans SET updated_at = CURRENT_TIMESTAMP';
-  fields.forEach((field, i) => {
-    query += `, ${field} = '${values[i]}'`;
-  });
-  query += ` WHERE id = '${planId}' RETURNING *`;
-  const result = await db(query);
-  return asRow(result);
+  return updateById(
+    'plans',
+    planId,
+    updates,
+    ['name', 'flow_type', 'version', 'flow_category', 'bow_type', 'suit_type', 'loan_dingyin']
+  );
 }
 
 export async function deletePlan(planId: string) {
@@ -231,20 +256,13 @@ export async function createEquipment(characterId: string, slot: string, name: s
 }
 
 export async function updateEquipment(equipmentId: string, updates: Record<string, any>) {
-  const db = getSql();
-  const fields = Object.keys(updates);
-  const values = Object.values(updates);
-  let query = 'UPDATE equipments SET updated_at = CURRENT_TIMESTAMP';
-  fields.forEach((field, i) => {
-    if (field === 'attributes') {
-      query += `, ${field} = '${JSON.stringify(values[i])}'`;
-    } else {
-      query += `, ${field} = '${values[i]}'`;
-    }
-  });
-  query += ` WHERE id = '${equipmentId}' RETURNING *`;
-  const result = await db(query);
-  return asRow(result);
+  return updateById(
+    'equipments',
+    equipmentId,
+    updates,
+    ['slot', 'name', 'level', 'attributes', 'is_wearing', 'suit_type'],
+    ['attributes']
+  );
 }
 
 export async function deleteEquipment(equipmentId: string) {

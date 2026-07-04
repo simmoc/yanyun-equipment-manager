@@ -2,52 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   燕云十六声 — 暗色主题配色方案
-   设计理念：深蓝紫暗色底 + 青绿强调色 + 语义化分层
-   ============================================================ */
-
 @layer base {
   :root {
-    /* ── 主背景/前景 ── */
-    --background: 235 42% 10%;        /* #10111f 深蓝黑 */
-    --foreground: 210 40% 98%;         /* #f8fafc 近白 */
-
-    /* ── 卡片/弹出层 ── */
-    --card: 234 40% 14%;               /* #161b32 卡片底色 */
+    --background: 235 42% 10%;
+    --foreground: 210 40% 98%;
+    --card: 234 40% 14%;
     --card-foreground: 210 40% 98%;
     --popover: 234 40% 14%;
     --popover-foreground: 210 40% 98%;
-
-    /* ── 主色调：青绿 (燕云主题色) ── */
-    --primary: 155 75% 48%;            /* #2dd4bf teal-400 */
+    --primary: 155 75% 48%;
     --primary-foreground: 235 42% 10%;
-
-    /* ── 次要色 ── */
-    --secondary: 234 35% 20%;          /* #2a2f4a 次级背景 */
+    --secondary: 234 35% 20%;
     --secondary-foreground: 210 40% 98%;
-
-    /* ── 静默色 (muted) ── */
-    --muted: 234 30% 24%;              /* #2e3350 更暗背景 */
-    --muted-foreground: 215 20% 65%;   /* #9ca3af 灰文字 */
-
-    /* ── 强调色 (accent) ── */
+    --muted: 234 30% 24%;
+    --muted-foreground: 215 20% 65%;
     --accent: 234 35% 20%;
     --accent-foreground: 210 40% 98%;
-
-    /* ── 破坏性色 ── */
-    --destructive: 0 72% 58%;          /* #e74c4c 红色 */
+    --destructive: 0 72% 58%;
     --destructive-foreground: 210 40% 98%;
-
-    /* ── 边框/输入 ── */
-    --border: 234 30% 28%;             /* #3a3f5c 边框 */
-    --input: 234 30% 22%;              /* #2d3250 输入框 */
-    --ring: 155 75% 48%;               /* teal 聚焦环 */
-
-    /* ── 圆角 ── */
+    --border: 234 30% 28%;
+    --input: 234 30% 22%;
+    --ring: 155 75% 48%;
     --radius: 0.625rem;
-
-    /* ── 侧边栏 ── */
     --sidebar: 234 40% 14%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 155 75% 48%;
@@ -56,32 +32,25 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 234 30% 28%;
     --sidebar-ring: 155 75% 48%;
-
-    /* ── 图表色 (语义化) ── */
-    --chart-1: 155 75% 48%;            /* teal 主色 */
-    --chart-2: 262 83% 72%;            /* 紫色 会意 */
-    --chart-3: 48 96% 63%;             /* 黄色 会心 */
-    --chart-4: 200 85% 65%;            /* 蓝色 普通 */
-    --chart-5: 220 14% 65%;            /* 灰色 擦伤 */
-
-    /* ── 语义化背景色 ── */
-    --surface-elevated: 234 35% 18%;   /* 提升表面 */
-    --surface-section: 234 32% 16%;    /* 区域块 */
-    --surface-hover: 234 30% 26%;      /* hover */
-
-    /* ── 数据语义色 ── */
-    --data-attack: 155 75% 48%;        /* 攻击 → teal */
-    --data-defense: 200 85% 60%;       /* 防御 → blue */
-    --data-rate: 48 96% 58%;           /* 三率 → yellow */
-    --data-dps: 262 83% 68%;           /* DPS → purple */
-    --data-boss: 48 85% 58%;           /* 首领增伤 → amber */
-    --data-weapon: 155 60% 50%;        /* 武器增伤 → green */
-    --data-dingyin: 200 80% 58%;       /* 定音 → sky */
-    --data-xinfa: 32 95% 60%;          /* 心法 → orange */
+    --chart-1: 155 75% 48%;
+    --chart-2: 262 83% 72%;
+    --chart-3: 48 96% 63%;
+    --chart-4: 200 85% 65%;
+    --chart-5: 220 14% 65%;
+    --surface-elevated: 234 35% 18%;
+    --surface-section: 234 32% 16%;
+    --surface-hover: 234 30% 26%;
+    --data-attack: 155 75% 48%;
+    --data-defense: 200 85% 60%;
+    --data-rate: 48 96% 58%;
+    --data-dps: 262 83% 68%;
+    --data-boss: 48 85% 58%;
+    --data-weapon: 155 60% 50%;
+    --data-dingyin: 200 80% 58%;
+    --data-xinfa: 32 95% 60%;
   }
 }
 
-/* ── 全局基础 ── */
 body {
   min-height: 100vh;
   background: hsl(var(--background));
@@ -89,7 +58,145 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-/* ── 自定义滚动条 ── */
+.app-shell {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    padding: 28px 28px 48px;
+  }
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.surface-panel {
+  background: rgba(24, 27, 33, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+}
+
+.toolbar-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  margin-bottom: 18px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.btn-primary {
+  background: #34d399;
+  color: #101418;
+}
+
+.btn-primary:hover {
+  background: #6ee7b7;
+}
+
+.btn-secondary {
+  background: rgba(148, 163, 184, 0.12);
+  color: #d1d5db;
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.btn-secondary:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: #f9fafb;
+}
+
+.btn-danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.btn-danger:hover {
+  background: rgba(248, 113, 113, 0.18);
+}
+
+.icon-btn {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.filter-panel {
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  color: #9ca3af;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 767px) {
+  .app-header,
+  .toolbar-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-header {
+    align-items: flex-start;
+  }
+
+  .app-header .btn {
+    flex: 0 0 auto;
+  }
+
+  .button-row {
+    width: 100%;
+  }
+
+  .btn {
+    flex: 1 1 auto;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -108,7 +215,6 @@ body {
   background: hsl(var(--primary) / 0.6);
 }
 
-/* ── 模态框动画 ── */
 .modal-enter {
   animation: modalFadeIn 0.3s ease-out;
 }
@@ -124,7 +230,6 @@ body {
   }
 }
 
-/* ── 装备卡片 ── */
 .equipment-card {
   background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
   border: 1px solid hsl(var(--border));
@@ -138,19 +243,17 @@ body {
   box-shadow: 0 0 18px hsl(var(--primary) / 0.15);
 }
 
-/* ── 渐入动画 ── */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in-up {
   animation: fadeInUp 0.4s ease-out;
 }
 
-/* ── 光泽扫过效果 ── */
 @keyframes shimmer {
-  0%   { transform: translateX(-100%); }
+  0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
 
@@ -158,6 +261,7 @@ body {
   position: relative;
   overflow: hidden;
 }
+
 .shimmer::after {
   content: '';
   position: absolute;

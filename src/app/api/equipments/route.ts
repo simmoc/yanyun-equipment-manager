@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getEquipmentsByCharacterId, createEquipment, updateEquipment, deleteEquipment } from '@/lib/db';
-import type { EquipmentSlot, SuitType, EquipmentAttribute } from '@/types';
 
 // 装备管理 API
 
@@ -112,6 +111,12 @@ export async function PUT(request: NextRequest) {
     }
     
     const equipment = await updateEquipment(equipmentId, updates);
+    if (!equipment) {
+      return NextResponse.json(
+        { success: false, error: '装备不存在' },
+        { status: 404 }
+      );
+    }
     
     return NextResponse.json({
       success: true,

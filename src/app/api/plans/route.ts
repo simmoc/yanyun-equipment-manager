@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getPlansByCharacterId, createPlan, updatePlan, deletePlan } from '@/lib/db';
-import type { FlowType, VersionType, FlowCategory, BowType, SuitType } from '@/types';
 
 // 方案管理 API
 
@@ -116,6 +115,12 @@ export async function PUT(request: NextRequest) {
     }
     
     const plan = await updatePlan(planId, updates);
+    if (!plan) {
+      return NextResponse.json(
+        { success: false, error: '方案不存在' },
+        { status: 404 }
+      );
+    }
     
     return NextResponse.json({
       success: true,

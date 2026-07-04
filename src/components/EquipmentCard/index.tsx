@@ -61,6 +61,7 @@ export function EquipmentCard({
   onEdit
 }: EquipmentCardProps) {
   const equipImage = getEquipImageUrl(equipment.name);
+  const canEdit = !equipment.id.startsWith('auth_equip_');
   const suitInfo = configData?.suffix_data
     ? Object.values(configData.suffix_data).find((s) => s.name === equipment.suit_type)
     : null;
@@ -220,6 +221,31 @@ const formatValue = (value: number, attrName: string): string => {
           </div>
         )}
       </div>
+
+      {canEdit && (
+        <div className="grid grid-cols-3 border-t border-gray-700 text-[11px]">
+          <button
+            onClick={onEdit}
+            className="py-1.5 text-gray-300 hover:bg-gray-700"
+          >
+            编辑
+          </button>
+          <button
+            onClick={() => void (equipment.is_wearing ? onUnwear() : onWear())}
+            className="py-1.5 text-emerald-300 hover:bg-gray-700 border-l border-gray-700"
+          >
+            {equipment.is_wearing ? '卸下' : '穿上'}
+          </button>
+          <button
+            onClick={() => {
+              if (window.confirm('删除这件装备？')) void onDelete();
+            }}
+            className="py-1.5 text-red-300 hover:bg-gray-700 border-l border-gray-700"
+          >
+            删除
+          </button>
+        </div>
+      )}
     </div>
   );
 }

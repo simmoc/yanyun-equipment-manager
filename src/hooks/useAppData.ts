@@ -3,6 +3,7 @@ import { initLocalDatabase, getNamespacedKey } from '@/lib/localStore';
 import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
 import { getEquipmentsFromAuthCache, parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
 import { getConfigData } from '@/lib/configStore';
+import { fetchNetEaseRoleInfo, fetchNetEaseRolePanel, fetchNetEaseRoles } from '@/lib/neteaseClient';
 import type { Character, Plan, Equipment, GameRole, AuthCredentials, RolePanelData } from '@/types';
 
 export function useAppData() {
@@ -49,25 +50,33 @@ export function useAppData() {
       console.error('获取方案失败:', error);
     }
 
-    if (!selectedCharacter.role_id) return;
+    const loadSavedEquipments = async () => {
+      try {
+        const ds = getDataSource();
+        return await ds.getEquipments(selectedCharacter.id);
+      } catch (error) {
+        console.error('获取装备失败:', error);
+        return [];
+      }
+    };
 
     const roleId = selectedCharacter.role_id;
+    if (!roleId) {
+      setEquipments(await loadSavedEquipments());
+      return;
+    }
+
     const server = selectedCharacter.server;
 
     // 有登录凭证时从API重新获取角色信息
     if (authCredentials && roleId && server) {
       try {
-        const response = await fetch('/api/auth/role-info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            roleId,
-            server,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
+        const result = await fetchNetEaseRoleInfo({
+          roleId,
+          server,
+          cookies: authCredentials.cookies,
+          loginToken: authCredentials.loginToken
         });
-        const result = await response.json();
 
         if (result.success && result.data?.roleInfo) {
           const configData = getConfigData();
@@ -87,7 +96,7 @@ export function useAppData() {
             localStorage.removeItem(`auth_${selectedCharacter.id}`);
           }
 
-          setEquipments(equipmentsList);
+          setEquipments([...equipmentsList, ...(await loadSavedEquipments())]);
           return;
         }
       } catch (error) {
@@ -103,20 +112,14 @@ export function useAppData() {
         localStorage.removeItem(`auth_${selectedCharacter.id}`);
       }
     }
-    const cached = getEquipmentsFromAuthCache(roleId);
+    const cached = getEquipmentsFromAuthCache(roleId, selectedCharacter.id);
     if (cached) {
-      setEquipments(cached);
+      setEquipments([...cached, ...(await loadSavedEquipments())]);
       return;
     }
 
     // 最后尝试从本地存储读取
-    try {
-      const ds = getDataSource();
-      const equipList = await ds.getEquipments(selectedCharacter.id);
-      setEquipments(equipList);
-    } catch (error) {
-      console.error('获取装备失败:', error);
-    }
+    setEquipments(await loadSavedEquipments());
   }, [selectedCharacter, authCredentials, selectedPlan]);
 
   const saveAuthCredentials = (cookies: any, loginToken: string, roles: GameRole[]) => {
@@ -202,18 +205,12 @@ export function useAppData() {
       }
 
       if ((!panelData || !hasXinfaData) && character.role_id && character.server && authCredentials) {
-        const response = await fetch('/api/auth/role-panel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            server: character.server,
-            roleId: character.role_id,
-            cookies: authCredentials.cookies,
-            loginToken: authCredentials.loginToken
-          })
+        const apiData = await fetchNetEaseRolePanel({
+          server: character.server,
+          roleId: character.role_id,
+          cookies: authCredentials.cookies,
+          loginToken: authCredentials.loginToken
         });
-
-        const apiData = await response.json();
         if (apiData.needReauth) {
           console.error('登录已过期，清除凭证');
           clearAuthCredentials();
@@ -267,15 +264,7 @@ export function useAppData() {
         const creds = loadAuthCredentials();
         if (creds && chars.length === 0) {
           try {
-            const response = await fetch('/api/auth/roles', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                cookies: creds.cookies,
-                loginToken: creds.loginToken
-              })
-            });
-            const data = await response.json();
+            const data = await fetchNetEaseRoles(creds.cookies, creds.loginToken);
             if (data.success) {
               setAvailableGameRoles(data.data.roles);
             }

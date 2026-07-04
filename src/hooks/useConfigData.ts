@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { EQUIPMENT_SLOTS, SUIT_TYPES } from '@/types';
 import type { EquipmentSlot, SuitType, XinfaData } from '@/types';
 import { setConfigData as saveConfigData } from '@/lib/configStore';
+import type { FlowConfigData, FlowSkillData, FlowRotationAction } from '@/lib/graduationCalculator';
 
 export function useConfigData() {
   const [configData, setConfigData] = useState<{
@@ -10,6 +11,9 @@ export function useConfigData() {
     affix_data: Record<string, { name: string; need_add: string; unit: string }>;
     slot_data?: Record<string, { id: number; name: string; image: string }>;
     xinfa_data?: Record<string, XinfaData>;
+    flow_config?: FlowConfigData;
+    flow_rotations?: Record<string, { rotation: FlowRotationAction[] }>;
+    flow_skills?: Record<string, Record<string, FlowSkillData>>;
   } | null>(null);
 
   useEffect(() => {
