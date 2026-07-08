@@ -57,7 +57,15 @@ export function useAppData() {
   const fetchPlansAndEquipments = useCallback(async () => {
     if (!selectedCharacter) return;
 
-    const configData = await loadConfigForEquipment();
+    const loadSavedEquipments = async () => {
+      try {
+        const ds = getDataSource();
+        return await ds.getEquipments(selectedCharacter.id);
+      } catch (error) {
+        console.error('获取装备失败:', error);
+        return [];
+      }
+    };
 
     try {
       const ds = getDataSource();
@@ -70,16 +78,6 @@ export function useAppData() {
       console.error('获取方案失败:', error);
     }
 
-    const loadSavedEquipments = async () => {
-      try {
-        const ds = getDataSource();
-        return await ds.getEquipments(selectedCharacter.id);
-      } catch (error) {
-        console.error('获取装备失败:', error);
-        return [];
-      }
-    };
-
     const roleId = selectedCharacter.role_id;
     if (!roleId) {
       setEquipments(await loadSavedEquipments());
@@ -88,9 +86,21 @@ export function useAppData() {
 
     const server = selectedCharacter.server;
 
+    // 先展示已解析缓存，避免刷新页面时被大配置文件加载阻塞。
+    const cached = getEquipmentsFromAuthCache(roleId, selectedCharacter.id);
+    const savedEquipments = await loadSavedEquipments();
+    const hasReadyCache = cached && !hasUnresolvedEquipmentText(cached);
+    if (hasReadyCache) {
+      setEquipments([...cached, ...savedEquipments]);
+      if (!authCredentials || !server) return;
+    }
+
     // 有登录凭证时从API重新获取角色信息
     if (authCredentials && roleId && server) {
       try {
+        const configData = await loadConfigForEquipment();
+        if (!configData) throw new Error('Config data not available');
+
         const result = await fetchNetEaseRoleInfo({
           roleId,
           server,
@@ -115,7 +125,7 @@ export function useAppData() {
             localStorage.removeItem(`auth_${selectedCharacter.id}`);
           }
 
-          setEquipments([...equipmentsList, ...(await loadSavedEquipments())]);
+          setEquipments([...equipmentsList, ...savedEquipments]);
           return;
         }
       } catch (error) {
@@ -133,16 +143,19 @@ export function useAppData() {
     }
 
     const authDataStr = localStorage.getItem(`auth_${roleId}`);
-    if (authDataStr && configData) {
+    if (authDataStr) {
       try {
         const authData = JSON.parse(authDataStr);
         const cachedEquipments = Array.isArray(authData.equipments) ? authData.equipments : [];
         if (authData.roleInfo && (!cachedEquipments.length || hasUnresolvedEquipmentText(cachedEquipments))) {
+          const configData = await loadConfigForEquipment();
+          if (!configData) throw new Error('Config data not available');
+
           const rawEquips = parseRawEquipments(authData.roleInfo, configData);
           const equipmentsList = convertToEquipmentList(rawEquips);
           authData.equipments = equipmentsList;
           localStorage.setItem(`auth_${roleId}`, JSON.stringify(authData));
-          setEquipments([...equipmentsList, ...(await loadSavedEquipments())]);
+          setEquipments([...equipmentsList, ...savedEquipments]);
           return;
         }
       } catch (error) {
@@ -150,14 +163,13 @@ export function useAppData() {
       }
     }
 
-    const cached = getEquipmentsFromAuthCache(roleId, selectedCharacter.id);
     if (cached) {
-      setEquipments([...cached, ...(await loadSavedEquipments())]);
+      setEquipments([...cached, ...savedEquipments]);
       return;
     }
 
     // 最后尝试从本地存储读取
-    setEquipments(await loadSavedEquipments());
+    setEquipments(savedEquipments);
   }, [selectedCharacter, authCredentials, selectedPlan]);
 
   const saveAuthCredentials = (cookies: any, loginToken: string, roles: GameRole[]) => {
