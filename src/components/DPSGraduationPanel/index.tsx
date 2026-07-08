@@ -42,13 +42,16 @@ const XINFA_TO_FLOW: Record<string, string> = {
    Helpers
    ================================================================ */
 
-function extractUserEquipment(panel: RolePanelData): UserEquipment {
+function extractUserEquipment(panel: RolePanelData, schoolWeapon?: string): UserEquipment {
   const equipment: UserEquipment = {};
   for (const elemName of ELEMENT_NAMES) {
     const m = PANEL_FIELD_MAP[elemName];
     if (!m) continue;
-    const minV = parseFloat((panel as any)[m.min]) || 0;
-    const maxV = parseFloat((panel as any)[m.max]) || 0;
+    // Excel 将无相攻击叠加到当前流派属性，而不是作为独立第 6 元素参与求和。
+    const activeMin = elemName === schoolWeapon ? parseFloat((panel as any).MIN_ACTIVE_PRO_ATK) || 0 : 0;
+    const activeMax = elemName === schoolWeapon ? parseFloat((panel as any).MAX_ACTIVE_PRO_ATK) || 0 : 0;
+    const minV = (parseFloat((panel as any)[m.min]) || 0) + activeMin;
+    const maxV = (parseFloat((panel as any)[m.max]) || 0) + activeMax;
     if (minV > 0 || maxV > 0) equipment[elemName] = { min: minV, max: maxV };
   }
   return equipment;
@@ -316,7 +319,7 @@ export function DPSGraduationPanel({
     if (!rolePanelData || !resolvedFlowType || !schoolRef) return null;
     const schoolKey = FLOW_TO_SCHOOL_KEY[resolvedFlowType as FlowType];
     if (!schoolKey) return { error: `流派 "${resolvedFlowType}" 暂无 DPS 参考数据` };
-    const equipment = extractUserEquipment(rolePanelData);
+    const equipment = extractUserEquipment(rolePanelData, schoolRef.mainWeapon);
     if (Object.keys(equipment).length === 0) return { error: '角色面板数据中未找到攻击属性' };
     const hitRates = extractHitRates(rolePanelData);
 
