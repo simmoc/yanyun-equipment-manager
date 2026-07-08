@@ -344,13 +344,25 @@ export default function Home() {
     }
   };
 
-  const handleQRCodeAuthSuccess = (cookies: any, loginToken: string, roles: GameRole[]) => {
+  const handleQRCodeAuthSuccess = async (cookies: any, loginToken: string, roles: GameRole[]) => {
     saveAuthCredentials(cookies, loginToken, roles);
     setShowQRCodeAuth(false);
+    setSelectedCharacter(null);
+    setSelectedPlan(null);
+    setEquipments([]);
+    setRolePanelData(null);
+    await fetchCharacters();
     setShowSelectRoleModal(true);
   };
 
   const handleSelectCharacter = (character: Character) => {
+    const ownsCharacter = availableGameRoles.some(role =>
+      role.roleId === character.role_id && (!character.server || role.server === character.server)
+    );
+    if (!ownsCharacter) {
+      toast.error('该角色不属于当前扫码账号，请重新选择');
+      return;
+    }
     setShowSelectRoleModal(false);
     setSelectedCharacter(character);
   };
@@ -431,9 +443,7 @@ export default function Home() {
       toast.success(equipmentsList.length > 0 ? `角色绑定成功！已加载 ${equipmentsList.length} 件装备` : '角色绑定成功！');
     } catch (error) {
       console.error('创建角色失败:', error);
-      clearAuthCredentials();
-      setShowQRCodeAuth(true);
-      toast.error('登录已过期，请重新扫码登录');
+      toast.error(error instanceof Error ? error.message : '角色绑定失败，请稍后重试');
     } finally {
       setIsCreatingCharacter(false);
     }

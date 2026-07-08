@@ -299,6 +299,7 @@ export function useAppData() {
         const statusResponse = await fetch('/api/status');
         const statusData = await statusResponse.json();
         const dbAvailable = statusData.data?.databaseAvailable;
+        const creds = loadAuthCredentials();
 
         let chars: Character[] = [];
         if (dbAvailable) {
@@ -311,7 +312,6 @@ export function useAppData() {
           chars = await fetchCharacters();
         }
 
-        const creds = loadAuthCredentials();
         if (creds && chars.length === 0) {
           try {
             const data = await fetchNetEaseRoles(creds.cookies, creds.loginToken);

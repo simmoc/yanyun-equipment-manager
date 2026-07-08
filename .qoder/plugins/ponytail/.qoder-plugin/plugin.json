@@ -1,0 +1,19 @@
+{
+  "name": "ponytail",
+  "displayName": "Ponytail — Lazy Senior Dev Mode",
+  "version": "4.7.3",
+  "description": "Forces the laziest solution that actually works: YAGNI, stdlib first, native platform features, one line before fifty.",
+  "descriptionZh": "懒惰高级开发者模式：强制使用最简方案，YAGNI优先，标准库优先，原生平台特性优先，一行代码优先于五十行。",
+  "author": {
+    "name": "Dietrich Gebert",
+    "url": "https://github.com/DietrichGebert"
+  },
+  "homepage": "https://github.com/DietrichGebert/ponytail",
+  "repository": "https://github.com/DietrichGebert/ponytail.git",
+  "logo": "./assets/avatar.svg",
+  "keywords": ["qoder-plugin", "skill", "ponytail", "lazy", "yagni", "minimal"],
+  "category": "developer-tools",
+  "tags": ["skill", "rules"],
+  "skills": "./skills/",
+  "rules": "./rules/"
+}

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureDb, getCharacters, getPlansByCharacterId, getEquipmentsByCharacterId, createCharacter, createPlan, createEquipment } from '@/lib/db';
+import { ensureDb, getCharactersByUuid, getPlansByCharacterId, getEquipmentsByCharacterId, createCharacter, createPlan, createEquipment } from '@/lib/db';
 import type { ExportData } from '@/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await ensureDb();
-    const characters = await getCharacters();
+    const { searchParams } = new URL(request.url);
+    const uuid = searchParams.get('uuid');
+
+    if (!uuid) {
+      return NextResponse.json(
+        { success: false, error: '缺少账号标识' },
+        { status: 400 }
+      );
+    }
+
+    const characters = await getCharactersByUuid(uuid);
     const allPlans = [];
     const allEquipments = [];
 
@@ -47,6 +57,12 @@ export async function GET() {
       characters: characters.map(c => ({
         id: c.id,
         name: c.name,
+        icon: c.icon,
+        level: c.level,
+        server_name: c.server_name,
+        role_id: c.role_id,
+        server: c.server,
+        uuid: c.uuid,
         created_at: c.created_at,
         updated_at: c.updated_at
       })),
@@ -71,7 +87,7 @@ export async function POST(request: NextRequest) {
   try {
     await ensureDb();
     const body = await request.json();
-    const { data } = body as { data: ExportData };
+    const { data, uuid } = body as { data: ExportData; uuid?: string };
 
     if (!data || !data.characters) {
       return NextResponse.json(
@@ -80,10 +96,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!uuid) {
+      return NextResponse.json(
+        { success: false, error: '缺少账号标识' },
+        { status: 400 }
+      );
+    }
+
     const characterIdMap: Record<string, string> = {};
     for (const character of data.characters) {
-      const newCharacter = await createCharacter(character.name);
-      characterIdMap[character.id] = newCharacter.id;
+      const newCharacter = await createCharacter(character.name, {
+        icon: character.icon,
+        level: character.level,
+        server_name: character.server_name,
+        role_id: character.role_id,
+        server: character.server,
+        uuid,
+      });
+      if (newCharacter) {
+        characterIdMap[character.id] = newCharacter.id;
+      }
     }
 
     for (const plan of data.plans) {

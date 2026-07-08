@@ -237,6 +237,7 @@ export async function createCharacter(name: string, options?: {
     INSERT INTO characters (name, icon, level, server_name, role_id, uuid, server)
     VALUES (${name}, ${options?.icon || null}, ${options?.level || null}, ${options?.server_name || null}, ${options?.role_id || null}, ${options?.uuid || null}, ${options?.server || null})
     ON CONFLICT (role_id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, level = EXCLUDED.level, server_name = EXCLUDED.server_name, uuid = EXCLUDED.uuid, server = EXCLUDED.server, updated_at = CURRENT_TIMESTAMP
+    WHERE characters.uuid IS NULL OR characters.uuid = EXCLUDED.uuid
     RETURNING *
   `;
   return asRow(result);

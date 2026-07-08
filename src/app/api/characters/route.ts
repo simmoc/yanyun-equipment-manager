@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureDb, getCharacters, createCharacter, deleteCharacter, getCharacterByRoleId, getCharactersByUuid } from '@/lib/db';
+import { ensureDb, createCharacter, deleteCharacter, getCharacterByRoleId, getCharactersByUuid } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();
     const { searchParams } = new URL(request.url);
     const uuid = searchParams.get('uuid');
-    const characters = uuid ? await getCharactersByUuid(uuid) : await getCharacters();
+    const characters = uuid ? await getCharactersByUuid(uuid) : [];
     return NextResponse.json({
       success: true,
       characters: characters.map(c => ({
@@ -51,8 +51,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!uuid) {
+      return NextResponse.json(
+        { error: '缺少账号标识' },
+        { status: 400 }
+      );
+    }
+
     const existing = await getCharacterByRoleId(role_id);
     if (existing) {
+      if (existing.uuid && existing.uuid !== uuid) {
+        return NextResponse.json(
+          { success: false, error: '该角色已绑定到其他账号' },
+          { status: 403 }
+        );
+      }
+
+      if (!existing.uuid) {
+        const claimedCharacter = await createCharacter(name.trim(), {
+          icon, level, server_name, role_id, server, uuid
+        });
+
+        if (claimedCharacter) {
+          return NextResponse.json({
+            success: true,
+            character: {
+              id: claimedCharacter.id,
+              name: claimedCharacter.name,
+              icon: claimedCharacter.icon,
+              level: claimedCharacter.level,
+              server_name: claimedCharacter.server_name,
+              role_id: claimedCharacter.role_id,
+              server: claimedCharacter.server,
+              uuid: claimedCharacter.uuid,
+              created_at: claimedCharacter.created_at,
+              updated_at: claimedCharacter.updated_at
+            }
+          });
+        }
+      }
+
       return NextResponse.json({
         success: true,
         character: {

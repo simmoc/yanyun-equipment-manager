@@ -16,8 +16,13 @@ interface SelectRoleModalProps {
 export function SelectRoleModal({ isOpen, onClose, roles, characters, onSelect, onSelectCharacter, isLoading }: SelectRoleModalProps) {
   if (!isOpen) return null;
 
+  const selectableCharacters = characters.filter(character =>
+    character.role_id &&
+    roles.some(role => role.roleId === character.role_id && (!character.server || role.server === character.server))
+  );
+
   const boundRoleIds = new Set(
-    characters.filter(c => c.role_id).map(c => c.role_id)
+    selectableCharacters.map(c => c.role_id)
   );
 
   const unboundRoles = roles.filter(r => !boundRoleIds.has(r.roleId));
@@ -35,11 +40,11 @@ export function SelectRoleModal({ isOpen, onClose, roles, characters, onSelect, 
           </button>
         </div>
 
-        {characters.length > 0 && (
+        {selectableCharacters.length > 0 && (
           <>
             <p className="text-gray-400 text-sm mb-3">已绑定的角色</p>
             <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
-              {characters.map((character) => (
+              {selectableCharacters.map((character) => (
                 <button
                   key={character.id}
                   onClick={() => onSelectCharacter?.(character)}
@@ -104,7 +109,7 @@ export function SelectRoleModal({ isOpen, onClose, roles, characters, onSelect, 
           </>
         )}
 
-        {characters.length === 0 && unboundRoles.length === 0 && (
+        {selectableCharacters.length === 0 && unboundRoles.length === 0 && (
           <p className="text-gray-500 text-center py-8">暂无可用角色</p>
         )}
 

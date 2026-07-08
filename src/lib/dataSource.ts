@@ -85,24 +85,25 @@ class LocalDataSource implements DataSource {
 }
 
 class ApiDataSource implements DataSource {
+  private getCurrentGodUuid(): string | undefined {
+    if (typeof window === 'undefined') return undefined;
+    try {
+      const authStr = localStorage.getItem('auth_credentials');
+      if (authStr) {
+        const auth = JSON.parse(authStr);
+        if (auth.cookies?.godUuid) return auth.cookies.godUuid;
+      }
+      const cacheStr = localStorage.getItem('qrcode_auth_cache');
+      if (cacheStr) {
+        const cache = JSON.parse(cacheStr);
+        if (cache.cookies?.godUuid) return cache.cookies.godUuid;
+      }
+    } catch {}
+    return undefined;
+  }
+
   async getCharacters(): Promise<Character[]> {
-    let uuid: string | undefined;
-    if (typeof window !== 'undefined') {
-      try {
-        const authStr = localStorage.getItem('auth_credentials');
-        if (authStr) {
-          const auth = JSON.parse(authStr);
-          uuid = auth.cookies?.godUuid;
-        }
-        if (!uuid) {
-          const cacheStr = localStorage.getItem('qrcode_auth_cache');
-          if (cacheStr) {
-            const cache = JSON.parse(cacheStr);
-            uuid = cache.cookies?.godUuid;
-          }
-        }
-      } catch {}
-    }
+    const uuid = this.getCurrentGodUuid();
     const url = uuid ? `/api/characters?uuid=${encodeURIComponent(uuid)}` : '/api/characters';
     const response = await fetch(url);
     const data = await response.json();
@@ -113,30 +114,14 @@ class ApiDataSource implements DataSource {
   async createCharacter(name: string, options?: {
     icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character> {
-    let uuid: string | undefined;
-    if (typeof window !== 'undefined') {
-      try {
-        const authStr = localStorage.getItem('auth_credentials');
-        if (authStr) {
-          const auth = JSON.parse(authStr);
-          uuid = auth.cookies?.godUuid;
-        }
-        if (!uuid) {
-          const cacheStr = localStorage.getItem('qrcode_auth_cache');
-          if (cacheStr) {
-            const cache = JSON.parse(cacheStr);
-            uuid = cache.cookies?.godUuid;
-          }
-        }
-      } catch {}
-    }
+    const uuid = this.getCurrentGodUuid();
     const response = await fetch('/api/characters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, ...options, uuid })
     });
     const data = await response.json();
-    if (!data.success) throw new Error('Failed to create character');
+    if (!data.success) throw new Error(data.error || 'Failed to create character');
     return data.character;
   }
 
@@ -205,20 +190,23 @@ class ApiDataSource implements DataSource {
   }
 
   async exportData(): Promise<object> {
-    const response = await fetch('/api/export');
+    const uuid = this.getCurrentGodUuid();
+    const url = uuid ? `/api/export?uuid=${encodeURIComponent(uuid)}` : '/api/export';
+    const response = await fetch(url);
     const data = await response.json();
-    if (!data.success) throw new Error('Failed to export data');
+    if (!data.success) throw new Error(data.error || 'Failed to export data');
     return data.data;
   }
 
   async importData(data: object): Promise<void> {
+    const uuid = this.getCurrentGodUuid();
     const response = await fetch('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data })
+      body: JSON.stringify({ data, uuid })
     });
     const result = await response.json();
-    if (!result.success) throw new Error('Failed to import data');
+    if (!result.success) throw new Error(result.error || 'Failed to import data');
   }
 
   async createShare(snapshot: object): Promise<{ id: string }> {
