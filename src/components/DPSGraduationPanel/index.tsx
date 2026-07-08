@@ -16,6 +16,7 @@ import {
   SCHOOL_WEAPON_AFFIX_MAP,
   type SpecialBonusMap,
   type UserEquipment,
+  type UserHitRates,
 } from '@/lib/dpsCalculator';
 import { SCHOOL_REF_DATA } from '@/lib/dpsReferenceData';
 
@@ -51,6 +52,26 @@ function extractUserEquipment(panel: RolePanelData): UserEquipment {
     if (minV > 0 || maxV > 0) equipment[elemName] = { min: minV, max: maxV };
   }
   return equipment;
+}
+
+function parsePanelRate(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined;
+  const parsed = typeof value === 'number' ? value : parseFloat(String(value));
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.min(1, Math.max(0, parsed > 1 ? parsed / 100 : parsed));
+}
+
+function extractHitRates(panel: RolePanelData): UserHitRates | undefined {
+  const preciseRate = parsePanelRate((panel as any).REAL_ACR_PROB ?? (panel as any).ACR_PROB);
+  const baseCritRate = parsePanelRate((panel as any).REAL_CRI_PROB ?? (panel as any).CRI_PROB);
+  const baseBashRate = parsePanelRate((panel as any).REAL_BASH_PROB ?? (panel as any).BASH_PROB);
+  const directCritRate = parsePanelRate((panel as any).DIRECT_CRI_PROB) ?? 0;
+  const directBashRate = parsePanelRate((panel as any).DIRECT_BASH_PROB) ?? 0;
+  const critRate = baseCritRate == null ? undefined : Math.min(1, baseCritRate + directCritRate);
+  const bashRate = baseBashRate == null ? undefined : Math.min(1, baseBashRate + directBashRate);
+  const hitRates: UserHitRates = { preciseRate, critRate, bashRate };
+
+  return Object.values(hitRates).some((rate) => Number.isFinite(rate)) ? hitRates : undefined;
 }
 
 function extractBossBonus(equipments: Equipment[]): number {
@@ -297,6 +318,7 @@ export function DPSGraduationPanel({
     if (!schoolKey) return { error: `流派 "${resolvedFlowType}" 暂无 DPS 参考数据` };
     const equipment = extractUserEquipment(rolePanelData);
     if (Object.keys(equipment).length === 0) return { error: '角色面板数据中未找到攻击属性' };
+    const hitRates = extractHitRates(rolePanelData);
 
     const equipList = equipments || [];
     const bossBonus = equipList.length > 0 ? extractBossBonus(equipList) : REF_BOSS_BONUS;
@@ -316,8 +338,8 @@ export function DPSGraduationPanel({
 
     try {
       const calc = new DPSGraduationCalculator(schoolKey, schoolRef);
-      const res = calc.calculate({ equipment, bossBonus, dingyinBonus, specialBonuses, allWeaponBonus, weaponBonus, dingyinPenetration });
-      return { res, schoolKey, isMingjin: schoolRef.isMingjin, bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, dingyinPenetration, loanDingyin };
+      const res = calc.calculate({ equipment, hitRates, bossBonus, dingyinBonus, specialBonuses, allWeaponBonus, weaponBonus, dingyinPenetration });
+      return { res, schoolKey, isMingjin: schoolRef.isMingjin, bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, dingyinPenetration, loanDingyin, hitRates };
     } catch (e: any) { return { error: `计算失败: ${e.message}` }; }
   }, [rolePanelData, resolvedFlowType, equipments, loanDingyin]);
 
@@ -370,7 +392,7 @@ export function DPSGraduationPanel({
     );
   }
 
-  const { res, bossBonus: usedBossBonus, dingyinBonus: usedDingyinBonus, allWeaponBonus: usedAllWeaponBonus, weaponBonus: usedWeaponBonus, dingyinPenetration: usedDingyinPenetration } = result;
+  const { res, bossBonus: usedBossBonus, dingyinBonus: usedDingyinBonus, allWeaponBonus: usedAllWeaponBonus, weaponBonus: usedWeaponBonus, dingyinPenetration: usedDingyinPenetration, hitRates: usedHitRates } = result;
   const rate = res.毕业率数值, color = getRateColor(rate), label = getRateLabel(rate);
 
   return (
@@ -404,6 +426,9 @@ export function DPSGraduationPanel({
             <Factor label="全武增" value={usedAllWeaponBonus != null ? '+' + (usedAllWeaponBonus * 100).toFixed(1) + '%' : `默认 ${(REF_ALL_WEAPON_BONUS * 100).toFixed(1)}%`} valueClass="text-purple-400" />
             <Factor label="武器增" value={usedWeaponBonus != null ? '+' + (usedWeaponBonus * 100).toFixed(1) + '%' : `默认 ${(REF_WEAPON_BONUS * 100).toFixed(1)}%`} valueClass="text-green-400" />
             <Factor label="定音增伤" value={loanDingyin ? `+${(DINGYIN_BONUS_MAX_110 * 100).toFixed(1)}% (贷款)` : usedDingyinBonus != null ? '+' + (usedDingyinBonus * 100).toFixed(1) + '%' : `默认 ${(DINGYIN_BONUS_MAX_110 * 100).toFixed(1)}%`} valueClass="text-yellow-400" />
+            <Factor label="实际精准" value={usedHitRates?.preciseRate != null ? (usedHitRates.preciseRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-cyan-400" />
+            <Factor label="实际会心" value={usedHitRates?.critRate != null ? (usedHitRates.critRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-red-400" />
+            <Factor label="实际会意" value={usedHitRates?.bashRate != null ? (usedHitRates.bashRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-indigo-400" />
             <div className="col-span-2 flex justify-between">
               <span className="text-gray-400">外功穿透定音</span>
               <span className="text-cyan-400">

@@ -88,6 +88,16 @@ export interface UserEquipment {
   };
 }
 
+/** 用户实际三率输入 (0-1 小数) */
+export interface UserHitRates {
+  /** 实际精准率 */
+  preciseRate?: number;
+  /** 实际会心率, 已包含直接会心 */
+  critRate?: number;
+  /** 实际会意率, 已包含直接会意 */
+  bashRate?: number;
+}
+
 /** 单行技能计算明细 (全部输入参数 + 中间值) */
 export interface SkillDetail {
   skill: string;
@@ -160,6 +170,8 @@ export interface UserCombatStats {
   weaponBonus?: number;
   /** 外功穿透定音百分比 (从装备定音词条「外功穿透」提取, 单位: %, 如 63.5 表示 63.5%, 或贷款定音时使用 110 阶满值) */
   dingyinPenetration?: number;
+  /** 角色面板实际三率, 用于替换参考表里的命中分布 */
+  hitRates?: UserHitRates;
 }
 
 // ─────────────────────────────────────────────
@@ -550,6 +562,52 @@ function calculateRowResults(
   return results;
 }
 
+function clampRatio(value: number, fallback = 0): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(1, Math.max(0, value));
+}
+
+function hasUserHitRates(hitRates?: UserHitRates): boolean {
+  return !!hitRates && (
+    Number.isFinite(hitRates.preciseRate) ||
+    Number.isFinite(hitRates.critRate) ||
+    Number.isFinite(hitRates.bashRate)
+  );
+}
+
+function isLockedHitDistribution(row: RefSkillRow): boolean {
+  const ratios = [
+    row.critRateRatio,
+    row.bashRateRatio,
+    row.normalAttackRatio,
+    row.grazeRatio,
+  ].map((ratio) => clampRatio(ratio));
+  const oneCount = ratios.filter((ratio) => ratio >= 0.999).length;
+  const zeroCount = ratios.filter((ratio) => ratio <= 0.001).length;
+  return oneCount === 1 && zeroCount === ratios.length - 1;
+}
+
+function applyUserHitRates(row: RefSkillRow, hitRates?: UserHitRates): RefSkillRow {
+  if (!hasUserHitRates(hitRates) || isLockedHitDistribution(row)) return row;
+
+  const preciseRate = clampRatio(hitRates?.preciseRate ?? (1 - row.grazeRatio), 1 - row.grazeRatio);
+  const nonGrazeRatio = preciseRate;
+  const grazeRatio = Math.max(0, 1 - nonGrazeRatio);
+  const bashRate = clampRatio(hitRates?.bashRate ?? row.bashRateRatio, row.bashRateRatio);
+  const critRate = clampRatio(hitRates?.critRate ?? row.critRateRatio, row.critRateRatio);
+  const bashRateRatio = Math.min(bashRate, nonGrazeRatio);
+  const critRateRatio = Math.min(critRate, Math.max(0, nonGrazeRatio - bashRateRatio));
+  const normalAttackRatio = Math.max(0, nonGrazeRatio - bashRateRatio - critRateRatio);
+
+  return {
+    ...row,
+    critRateRatio,
+    normalAttackRatio,
+    grazeRatio,
+    bashRateRatio,
+  };
+}
+
 // ─────────────────────────────────────────────
 // FlowType → schoolKey mapping
 // ─────────────────────────────────────────────
@@ -672,7 +730,8 @@ export class DPSGraduationCalculator {
     }
 
     const skillDetails: SkillDetail[] = [];
-    const mergedRows = this.schoolRef.rows.map((row): RefSkillRow => {
+    const mergedRows = this.schoolRef.rows.map((sourceRow): RefSkillRow => {
+      const row = applyUserHitRates(sourceRow, userStats.hitRates);
       const mergedElements: Record<string, ElementValues> = {};
       for (const elemName of ELEMENT_NAMES) {
         if (equipment[elemName]) {
