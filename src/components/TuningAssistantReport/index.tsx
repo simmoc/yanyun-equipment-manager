@@ -530,10 +530,10 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
   const [apiData, setApiData] = useState<Record<string, ApiFlowEntry> | null>(null);
 
   useEffect(() => {
-    fetch('https://s.166.net/config/ds_h72/ai_transfer_tool.json')
+    fetch('/api/ai-transfer-tool')
       .then(r => r.json())
       .then(data => {
-        if (data?.recommend) setApiData(data.recommend);
+        if (data?.data?.recommend) setApiData(data.data.recommend);
       })
       .catch(() => {});
   }, []);

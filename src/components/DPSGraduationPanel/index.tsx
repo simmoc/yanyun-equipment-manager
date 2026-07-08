@@ -257,8 +257,8 @@ export function DPSGraduationPanel({
   const prevRoleIdRef = useRef<string | undefined>(rolePanelData?.roleId);
 
   useEffect(() => {
-    fetch('https://s.166.net/config/ds_h72/ai_transfer_tool.json')
-      .then(r => r.json()).then(d => { if (d?.recommend) setApiData(d.recommend); }).catch(() => {});
+    fetch('/api/ai-transfer-tool')
+      .then(r => r.json()).then(d => { if (d?.data?.recommend) setApiData(d.data.recommend); }).catch(() => {});
   }, []);
 
   // Reset flow type detection when character changes (roleId changes)
