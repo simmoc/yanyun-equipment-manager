@@ -39,6 +39,14 @@ export function useAppData() {
 
   const fetchPlansAndEquipments = useCallback(async () => {
     if (!selectedCharacter) return;
+
+    if (!getConfigData()) {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 100));
+        if (getConfigData()) break;
+      }
+    }
+
     try {
       const ds = getDataSource();
       const planList = await ds.getPlans(selectedCharacter.id);
@@ -79,14 +87,7 @@ export function useAppData() {
         });
 
         if (result.success && result.data?.roleInfo) {
-          let configData = getConfigData();
-          if (!configData) {
-            for (let i = 0; i < 30; i++) {
-              await new Promise(r => setTimeout(r, 100));
-              configData = getConfigData();
-              if (configData) break;
-            }
-          }
+          const configData = getConfigData();
           const rawEquips = parseRawEquipments(result.data.roleInfo, configData);
           const equipmentsList = convertToEquipmentList(rawEquips);
 
@@ -294,7 +295,7 @@ export function useAppData() {
 
   useEffect(() => {
     fetchPlansAndEquipments();
-  }, [selectedCharacter]);
+  }, [selectedCharacter, authCredentials]);
 
   useEffect(() => {
     if (selectedCharacter) {
