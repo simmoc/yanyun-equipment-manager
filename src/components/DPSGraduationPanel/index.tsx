@@ -68,11 +68,15 @@ function extractHitRates(panel: RolePanelData): UserHitRates | undefined {
   const preciseRate = parsePanelRate((panel as any).REAL_ACR_PROB ?? (panel as any).ACR_PROB);
   const baseCritRate = parsePanelRate((panel as any).REAL_CRI_PROB ?? (panel as any).CRI_PROB);
   const baseBashRate = parsePanelRate((panel as any).REAL_BASH_PROB ?? (panel as any).BASH_PROB);
-  const directCritRate = parsePanelRate((panel as any).DIRECT_CRI_PROB) ?? 0;
-  const directBashRate = parsePanelRate((panel as any).DIRECT_BASH_PROB) ?? 0;
-  const critRate = baseCritRate == null ? undefined : Math.min(1, baseCritRate + directCritRate);
-  const bashRate = baseBashRate == null ? undefined : Math.min(1, baseBashRate + directBashRate);
-  const hitRates: UserHitRates = { preciseRate, critRate, bashRate };
+  const directCritRate = parsePanelRate((panel as any).DIRECT_CRI_PROB);
+  const directBashRate = parsePanelRate((panel as any).DIRECT_BASH_PROB);
+  const hitRates: UserHitRates = {
+    preciseRate,
+    critRate: baseCritRate,
+    directCritRate,
+    bashRate: baseBashRate,
+    directBashRate,
+  };
 
   return Object.values(hitRates).some((rate) => Number.isFinite(rate)) ? hitRates : undefined;
 }
@@ -432,6 +436,8 @@ export function DPSGraduationPanel({
             <Factor label="实际精准" value={usedHitRates?.preciseRate != null ? (usedHitRates.preciseRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-cyan-400" />
             <Factor label="实际会心" value={usedHitRates?.critRate != null ? (usedHitRates.critRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-red-400" />
             <Factor label="实际会意" value={usedHitRates?.bashRate != null ? (usedHitRates.bashRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-indigo-400" />
+            <Factor label="直接会心" value={usedHitRates?.directCritRate != null ? '+' + (usedHitRates.directCritRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-rose-400" />
+            <Factor label="直接会意" value={usedHitRates?.directBashRate != null ? '+' + (usedHitRates.directBashRate * 100).toFixed(1) + '%' : '参考'} valueClass="text-violet-400" />
             <div className="col-span-2 flex justify-between">
               <span className="text-gray-400">外功穿透定音</span>
               <span className="text-cyan-400">

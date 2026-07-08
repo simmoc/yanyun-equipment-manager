@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { Character, Plan, Equipment, EquipmentSlot, FlowType, VersionType, FlowCategory, BowType, SuitType } from '@/types';
+import { getGodUuid } from '@/lib/getGodUuid';
 
 const STORAGE_KEYS = {
   CHARACTERS: 'yanyun_characters',
@@ -9,25 +9,9 @@ const STORAGE_KEYS = {
 };
 
 function generateId(): string {
-  return uuidv4();
+  return crypto.randomUUID();
 }
 
-function getGodUuid(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    const authStr = localStorage.getItem('auth_credentials');
-    if (authStr) {
-      const auth = JSON.parse(authStr);
-      if (auth.cookies?.godUuid) return auth.cookies.godUuid;
-    }
-    const cacheStr = localStorage.getItem('qrcode_auth_cache');
-    if (cacheStr) {
-      const cache = JSON.parse(cacheStr);
-      if (cache.cookies?.godUuid) return cache.cookies.godUuid;
-    }
-  } catch {}
-  return '';
-}
 
 export function getNamespacedKey(key: string): string {
   const uid = getGodUuid();
@@ -174,18 +158,6 @@ export async function deleteCharacterLocal(characterId: string): Promise<void> {
   let equipments = getItem<LocalEquipment>(STORAGE_KEYS.EQUIPMENTS);
   equipments = equipments.filter(e => e.character_id !== characterId);
   setItem(STORAGE_KEYS.EQUIPMENTS, equipments);
-}
-
-export async function getCharacterByRoleIdLocal(roleId: string): Promise<Character | null> {
-  const characters = getItem<LocalCharacter>(STORAGE_KEYS.CHARACTERS);
-  const c = characters.find(ch => ch.role_id === roleId);
-  if (!c) return null;
-  return {
-    id: c.id, name: c.name, icon: c.icon, level: c.level,
-    server_name: c.server_name, role_id: c.role_id, server: c.server,
-    uuid: c.uuid,
-    created_at: new Date(c.created_at), updated_at: new Date(c.updated_at)
-  } as Character;
 }
 
 export async function getPlansByCharacterIdLocal(characterId: string): Promise<Plan[]> {
@@ -414,13 +386,6 @@ export function importLocalData(data: {
   if (data.characters) setItem(STORAGE_KEYS.CHARACTERS, data.characters);
   if (data.plans) setItem(STORAGE_KEYS.PLANS, data.plans);
   if (data.equipments) setItem(STORAGE_KEYS.EQUIPMENTS, data.equipments);
-}
-
-export function clearLocalData(): void {
-  localStorage.removeItem(getKey(STORAGE_KEYS.CHARACTERS));
-  localStorage.removeItem(getKey(STORAGE_KEYS.PLANS));
-  localStorage.removeItem(getKey(STORAGE_KEYS.EQUIPMENTS));
-  localStorage.removeItem(getKey(STORAGE_KEYS.SHARES));
 }
 
 // 分享存储

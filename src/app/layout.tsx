@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: { default: '燕云十六声装备毕业率管理器', template: '%s | 燕云毕业率' },

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { generateChecksum } from '@/lib/checksum';
 
 export const dynamic = 'force-dynamic';
-
-function generateChecksum(body: string, xsrfToken: string): string {
-  return crypto.createHash('sha1').update(body + xsrfToken).digest('hex');
-}
 
 export async function POST(request: NextRequest) {
   try {

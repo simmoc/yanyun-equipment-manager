@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initLocalDatabase, getNamespacedKey } from '@/lib/localStore';
-import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
+import { initDataSource, getDataSource } from '@/lib/dataSource';
 import { getEquipmentsFromAuthCache, parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
 import { ensureConfigData, getConfigData } from '@/lib/configStore';
 import { fetchNetEaseRoleInfo, fetchNetEaseRolePanel, fetchNetEaseRoles } from '@/lib/neteaseClient';

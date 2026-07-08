@@ -1,5 +1,6 @@
 import type { Character, Plan, Equipment } from '@/types';
 import * as localStore from '@/lib/localStore';
+import { getGodUuid } from '@/lib/getGodUuid';
 
 interface DataSource {
   getCharacters(): Promise<Character[]>;
@@ -85,25 +86,8 @@ class LocalDataSource implements DataSource {
 }
 
 class ApiDataSource implements DataSource {
-  private getCurrentGodUuid(): string | undefined {
-    if (typeof window === 'undefined') return undefined;
-    try {
-      const authStr = localStorage.getItem('auth_credentials');
-      if (authStr) {
-        const auth = JSON.parse(authStr);
-        if (auth.cookies?.godUuid) return auth.cookies.godUuid;
-      }
-      const cacheStr = localStorage.getItem('qrcode_auth_cache');
-      if (cacheStr) {
-        const cache = JSON.parse(cacheStr);
-        if (cache.cookies?.godUuid) return cache.cookies.godUuid;
-      }
-    } catch {}
-    return undefined;
-  }
-
   async getCharacters(): Promise<Character[]> {
-    const uuid = this.getCurrentGodUuid();
+    const uuid = getGodUuid();
     const url = uuid ? `/api/characters?uuid=${encodeURIComponent(uuid)}` : '/api/characters';
     const response = await fetch(url);
     const data = await response.json();
@@ -114,7 +98,7 @@ class ApiDataSource implements DataSource {
   async createCharacter(name: string, options?: {
     icon?: string; level?: string; server_name?: string; role_id?: string; server?: string;
   }): Promise<Character> {
-    const uuid = this.getCurrentGodUuid();
+    const uuid = getGodUuid();
     const response = await fetch('/api/characters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -190,7 +174,7 @@ class ApiDataSource implements DataSource {
   }
 
   async exportData(): Promise<object> {
-    const uuid = this.getCurrentGodUuid();
+    const uuid = getGodUuid();
     const url = uuid ? `/api/export?uuid=${encodeURIComponent(uuid)}` : '/api/export';
     const response = await fetch(url);
     const data = await response.json();
@@ -199,7 +183,7 @@ class ApiDataSource implements DataSource {
   }
 
   async importData(data: object): Promise<void> {
-    const uuid = this.getCurrentGodUuid();
+    const uuid = getGodUuid();
     const response = await fetch('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -237,10 +221,6 @@ export function getDataSource(): DataSource {
     throw new Error('DataSource not initialized. Call initDataSource first.');
   }
   return dataSource;
-}
-
-export function isLocalMode(): boolean {
-  return dataSource instanceof LocalDataSource;
 }
 
 export type { DataSource };

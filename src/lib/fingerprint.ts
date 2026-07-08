@@ -31,32 +31,3 @@ function generateFallbackId(): string {
   return 'fallback-' + Math.random().toString(36).substring(2, 15) + 
          Math.random().toString(36).substring(2, 15);
 }
-
-// 检测是否支持指纹
-export async function checkFingerprintSupport(): Promise<boolean> {
-  try {
-    const fp = await initFingerprint();
-    const result = await fp.get();
-    return !!result.visitorId;
-  } catch {
-    return false;
-  }
-}
-
-// 获取指纹详细信息（用于调试）
-export async function getFingerprintDetails(): Promise<object> {
-  try {
-    const fp = await initFingerprint();
-    const result = await fp.get();
-    return {
-      visitorId: result.visitorId,
-      confidence: result.confidence,
-      components: result.components
-    };
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      fallback: true
-    };
-  }
-}

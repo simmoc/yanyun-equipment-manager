@@ -13,13 +13,6 @@ export function getScoreColor(score: number): string {
   return SCORE_THRESHOLDS[SCORE_THRESHOLDS.length - 1].color;
 }
 
-export function getScoreLabel(score: number): string {
-  for (const t of SCORE_THRESHOLDS) {
-    if (score >= t.min) return t.label;
-  }
-  return SCORE_THRESHOLDS[SCORE_THRESHOLDS.length - 1].label;
-}
-
 export function calcScore(attributes: { is_main?: boolean; rate?: number }[]): number {
   const recommended = attributes.filter(a => a.is_main);
   if (recommended.length > 0) {

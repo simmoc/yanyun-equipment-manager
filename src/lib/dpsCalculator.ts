@@ -92,10 +92,14 @@ export interface UserEquipment {
 export interface UserHitRates {
   /** 实际精准率 */
   preciseRate?: number;
-  /** 实际会心率, 已包含直接会心 */
+  /** 实际会心率, 不含直接会心 */
   critRate?: number;
-  /** 实际会意率, 已包含直接会意 */
+  /** 直接会心率 */
+  directCritRate?: number;
+  /** 实际会意率, 不含直接会意 */
   bashRate?: number;
+  /** 直接会意率 */
+  directBashRate?: number;
 }
 
 /** 单行技能计算明细 (全部输入参数 + 中间值) */
@@ -571,7 +575,9 @@ function hasUserHitRates(hitRates?: UserHitRates): boolean {
   return !!hitRates && (
     Number.isFinite(hitRates.preciseRate) ||
     Number.isFinite(hitRates.critRate) ||
-    Number.isFinite(hitRates.bashRate)
+    Number.isFinite(hitRates.directCritRate) ||
+    Number.isFinite(hitRates.bashRate) ||
+    Number.isFinite(hitRates.directBashRate)
   );
 }
 
@@ -591,13 +597,20 @@ function applyUserHitRates(row: RefSkillRow, hitRates?: UserHitRates): RefSkillR
   if (!hasUserHitRates(hitRates) || isLockedHitDistribution(row)) return row;
 
   const preciseRate = clampRatio(hitRates?.preciseRate ?? (1 - row.grazeRatio), 1 - row.grazeRatio);
-  const nonGrazeRatio = preciseRate;
-  const grazeRatio = Math.max(0, 1 - nonGrazeRatio);
-  const bashRate = clampRatio(hitRates?.bashRate ?? row.bashRateRatio, row.bashRateRatio);
-  const critRate = clampRatio(hitRates?.critRate ?? row.critRateRatio, row.critRateRatio);
-  const bashRateRatio = Math.min(bashRate, nonGrazeRatio);
-  const critRateRatio = Math.min(critRate, Math.max(0, nonGrazeRatio - bashRateRatio));
-  const normalAttackRatio = Math.max(0, nonGrazeRatio - bashRateRatio - critRateRatio);
+  const critChance = clampRatio(
+    Math.min(0.8, hitRates?.critRate ?? row.critRateRatio) + (hitRates?.directCritRate ?? 0),
+    row.critRateRatio
+  );
+  const bashRateRatio = clampRatio(
+    Math.min(0.4, hitRates?.bashRate ?? row.bashRateRatio) + (hitRates?.directBashRate ?? 0),
+    row.bashRateRatio
+  );
+  const critRateRatio = Math.min(
+    Math.max(0, 1 - bashRateRatio) * preciseRate,
+    preciseRate * critChance
+  );
+  const grazeRatio = Math.max(0, 1 - preciseRate) * Math.max(0, 1 - bashRateRatio);
+  const normalAttackRatio = Math.max(0, 1 - bashRateRatio - critRateRatio - grazeRatio);
 
   return {
     ...row,
