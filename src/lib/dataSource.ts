@@ -189,41 +189,19 @@ class ApiDataSource implements DataSource {
   }
 
   async getEquipments(characterId: string): Promise<Equipment[]> {
-    const response = await fetch(`/api/equipments?characterId=${encodeURIComponent(characterId)}`);
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to fetch equipments');
-    return data.equipments;
+    return localStore.getEquipmentsByCharacterIdLocal(characterId);
   }
 
   async createEquipment(characterId: string, equipment: Omit<Equipment, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Equipment> {
-    const response = await fetch('/api/equipments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ characterId, ...equipment })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to create equipment');
-    return data.equipment;
+    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined);
   }
 
   async updateEquipment(equipmentId: string, updates: Partial<Equipment>): Promise<void> {
-    const response = await fetch('/api/equipments', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ equipmentId, updates })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to update equipment');
+    await localStore.updateEquipmentLocal(equipmentId, updates);
   }
 
   async deleteEquipment(equipmentId: string): Promise<void> {
-    const response = await fetch('/api/equipments', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ equipmentId })
-    });
-    const data = await response.json();
-    if (!data.success) throw new Error('Failed to delete equipment');
+    await localStore.deleteEquipmentLocal(equipmentId);
   }
 
   async exportData(): Promise<object> {
