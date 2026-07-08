@@ -1,16 +1,58 @@
 import { neon } from '@neondatabase/serverless';
+import { Pool, type QueryResult } from 'pg';
+
+type SqlClient = {
+  (strings: TemplateStringsArray, ...values: any[]): Promise<any>;
+  (query: string, params?: any[]): Promise<any>;
+};
 
 export function isDbConfigured(): boolean {
   return !!process.env.DATABASE_URL;
 }
 
-let _sql: ReturnType<typeof neon> | null = null;
+let _sql: SqlClient | null = null;
+let _pool: Pool | null = null;
 let _initialized = false;
+
+function isNeonDatabaseUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.endsWith('.neon.tech');
+  } catch {
+    return false;
+  }
+}
+
+function buildQuery(strings: TemplateStringsArray, values: any[]) {
+  let text = strings[0] || '';
+  for (let i = 0; i < values.length; i++) {
+    text += `$${i + 1}${strings[i + 1] || ''}`;
+  }
+  return { text, values };
+}
+
+function createPgClient(databaseUrl: string): SqlClient {
+  _pool = new Pool({
+    connectionString: databaseUrl,
+    max: Number(process.env.POSTGRES_POOL_MAX || 3),
+  });
+
+  return (async (queryOrStrings: TemplateStringsArray | string, ...valuesOrParams: any[]) => {
+    if (typeof queryOrStrings === 'string') {
+      const params = Array.isArray(valuesOrParams[0]) ? valuesOrParams[0] : valuesOrParams;
+      return _pool!.query(queryOrStrings, params) as Promise<QueryResult>;
+    }
+
+    const { text, values } = buildQuery(queryOrStrings, valuesOrParams);
+    return _pool!.query(text, values) as Promise<QueryResult>;
+  }) as SqlClient;
+}
 
 function getSql() {
   if (!_sql) {
     if (!process.env.DATABASE_URL) throw new Error('Database not configured');
-    _sql = neon(process.env.DATABASE_URL);
+    _sql = isNeonDatabaseUrl(process.env.DATABASE_URL)
+      ? neon(process.env.DATABASE_URL)
+      : createPgClient(process.env.DATABASE_URL);
   }
   return _sql;
 }
@@ -75,6 +117,8 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 export async function initDatabase() {
   try {
     const db = getSql();
+    await db`CREATE EXTENSION IF NOT EXISTS pgcrypto;`;
+
     await db`CREATE TABLE IF NOT EXISTS characters (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name VARCHAR(100) NOT NULL,
