@@ -632,19 +632,21 @@ export default function Home() {
                   <div className="space-y-3">
                     <div className="stat-block bg-gray-700/50">
                       <div className="text-sm font-medium mb-1.5 text-orange-300">心法</div>
-                      <div className="grid grid-cols-4 gap-1.5">
+                      <div className="xinfa-grid">
                         {Object.entries(rolePanelData?.['combat_plan.xinfa_info'] ?? rolePanelData?.xinfa_info ?? {}).map(([id, xinfa]) => {
                           const xinfaConfig = getXinfaInfo(Number(id) || 0);
                           const xinfaObj = xinfa as any;
                           const rank = Number(xinfaObj?.rank) || 0;
                           if (!xinfaConfig) return null;
                           return (
-                            <div key={id} className="relative w-[60px] h-[74px] rounded-lg overflow-hidden shadow" style={{ backgroundImage: `url(${xinfaConfig.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                              <div className="absolute inset-0 bg-black/30" />
-                              <img src={xinfaConfig.image1} alt={xinfaConfig.name} className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-8 rounded" onError={(e) => { e.currentTarget.src = '/img/default_xinfa.png'; }} />
-                              <div className="absolute bottom-4 left-0 right-0 text-[9px] text-center text-white truncate px-0.5">{xinfaConfig.name}</div>
-                              <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-[2px]">
-                                {Array.from({ length: 6 }).map((_, i) => <span key={i} className={`w-1 h-1 rounded-full ${i < rank ? 'bg-yellow-400' : 'bg-gray-500/70'}`} />)}
+                            <div key={id} className="xinfa-card">
+                              <div className="xinfa-card-glow" aria-hidden="true" />
+                              <div className="xinfa-icon-frame">
+                                <img src={xinfaConfig.image1} alt={xinfaConfig.name} className="xinfa-icon" onError={(e) => { e.currentTarget.src = '/img/default_xinfa.png'; }} />
+                              </div>
+                              <div className="xinfa-name" title={xinfaConfig.name}>{xinfaConfig.name}</div>
+                              <div className="xinfa-rank-dots" aria-label={`心法突破 ${rank} 阶`}>
+                                {Array.from({ length: 6 }).map((_, i) => <span key={i} className={i < rank ? 'xinfa-rank-dot active' : 'xinfa-rank-dot'} />)}
                               </div>
                             </div>
                           );

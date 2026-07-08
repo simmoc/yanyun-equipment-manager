@@ -317,6 +317,96 @@ body {
   gap: 6px 14px;
 }
 
+.xinfa-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.xinfa-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 82px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 4px 6px;
+  overflow: hidden;
+  border: 1px solid hsl(var(--data-xinfa) / 0.34);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 12%, hsl(var(--data-xinfa) / 0.22), transparent 40%),
+    linear-gradient(180deg, hsl(var(--surface-elevated) / 0.94), hsl(var(--surface-section) / 0.9));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 8px 18px hsl(222 40% 4% / 0.18);
+}
+
+.xinfa-card-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, hsl(var(--data-xinfa) / 0.22), transparent 38%),
+    linear-gradient(315deg, hsl(var(--primary) / 0.12), transparent 42%);
+  opacity: 0.8;
+}
+
+.xinfa-icon-frame {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid hsl(var(--data-xinfa) / 0.42);
+  border-radius: 7px;
+  background: hsl(222 32% 9% / 0.38);
+  box-shadow: 0 5px 12px hsl(222 40% 4% / 0.2);
+}
+
+.xinfa-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.xinfa-name {
+  position: relative;
+  display: -webkit-box;
+  width: 100%;
+  min-height: 22px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: hsl(var(--foreground));
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-shadow: 0 1px 2px hsl(222 40% 4% / 0.36);
+}
+
+.xinfa-rank-dots {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.xinfa-rank-dot {
+  width: 4px;
+  height: 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.42);
+}
+
+.xinfa-rank-dot.active {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 5px hsl(var(--warning) / 0.5);
+}
+
 @media (max-width: 767px) {
   .app-header,
   .toolbar-panel {
@@ -431,6 +521,49 @@ body {
   background: hsl(var(--surface-elevated) / 0.94);
   border-color: hsl(var(--border));
   box-shadow: 0 12px 34px hsl(220 28% 45% / 0.10);
+}
+
+.light .xinfa-card {
+  border-color: hsl(var(--data-xinfa) / 0.28);
+  background:
+    radial-gradient(circle at 50% 12%, hsl(var(--data-xinfa) / 0.2), transparent 42%),
+    linear-gradient(180deg, hsl(0 0% 100%), hsl(var(--surface-section)));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.86), 0 8px 20px hsl(220 28% 45% / 0.12);
+}
+
+.light .xinfa-card-glow {
+  background:
+    linear-gradient(135deg, hsl(var(--data-xinfa) / 0.16), transparent 42%),
+    linear-gradient(315deg, hsl(var(--primary) / 0.08), transparent 46%);
+}
+
+.light .xinfa-icon-frame {
+  background:
+    radial-gradient(circle at 50% 18%, hsl(42 78% 44% / 0.42), transparent 48%),
+    linear-gradient(180deg, hsl(222 24% 27%), hsl(222 28% 17%));
+  border-color: hsl(38 74% 54% / 0.38);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.16), 0 5px 12px hsl(220 28% 45% / 0.16);
+}
+
+.light .xinfa-icon {
+  filter: drop-shadow(0 1px 2px hsl(222 36% 8% / 0.55));
+}
+
+.light .xinfa-name {
+  color: hsl(222 32% 13%);
+  text-shadow: none;
+}
+
+.light .xinfa-rank-dot {
+  border-color: hsl(38 42% 58% / 0.2);
+  background: hsl(38 28% 76% / 0.55);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.68);
+}
+
+.light .xinfa-rank-dot.active {
+  border-color: hsl(38 72% 40% / 0.28);
+  background: linear-gradient(180deg, hsl(42 88% 64%), hsl(36 72% 48%));
+  box-shadow: 0 1px 3px hsl(38 66% 42% / 0.22);
 }
 
 .light .btn-primary {
