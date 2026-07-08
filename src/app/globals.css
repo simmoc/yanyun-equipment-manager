@@ -4,83 +4,95 @@
 
 @layer base {
   :root {
-    --background: 235 42% 10%;
-    --foreground: 210 40% 98%;
-    --card: 234 40% 14%;
-    --card-foreground: 210 40% 98%;
-    --popover: 234 40% 14%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 155 75% 48%;
-    --primary-foreground: 235 42% 10%;
-    --secondary: 234 35% 20%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 234 30% 24%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 234 35% 20%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 72% 58%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 234 30% 28%;
-    --input: 234 30% 22%;
-    --ring: 155 75% 48%;
+    --background: 222 32% 9%;
+    --foreground: 214 35% 96%;
+    --card: 222 28% 13%;
+    --card-foreground: 214 35% 96%;
+    --popover: 222 28% 13%;
+    --popover-foreground: 214 35% 96%;
+    --primary: 164 66% 48%;
+    --primary-foreground: 222 32% 9%;
+    --secondary: 219 22% 19%;
+    --secondary-foreground: 214 35% 96%;
+    --muted: 219 20% 23%;
+    --muted-foreground: 215 17% 70%;
+    --accent: 207 54% 26%;
+    --accent-foreground: 207 70% 88%;
+    --destructive: 0 66% 58%;
+    --destructive-foreground: 214 35% 96%;
+    --border: 219 18% 27%;
+    --input: 219 19% 21%;
+    --ring: 164 66% 48%;
     --radius: 0.625rem;
-    --sidebar: 234 40% 14%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 155 75% 48%;
-    --sidebar-primary-foreground: 235 42% 10%;
-    --sidebar-accent: 234 35% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 234 30% 28%;
-    --sidebar-ring: 155 75% 48%;
-    --chart-1: 155 75% 48%;
-    --chart-2: 262 83% 72%;
-    --chart-3: 48 96% 63%;
-    --chart-4: 200 85% 65%;
-    --chart-5: 220 14% 65%;
-    --surface-elevated: 234 35% 18%;
-    --surface-section: 234 32% 16%;
-    --surface-hover: 234 30% 26%;
-    --data-attack: 155 75% 48%;
-    --data-defense: 200 85% 60%;
-    --data-rate: 48 96% 58%;
-    --data-dps: 262 83% 68%;
-    --data-boss: 48 85% 58%;
-    --data-weapon: 155 60% 50%;
-    --data-dingyin: 200 80% 58%;
-    --data-xinfa: 32 95% 60%;
+    --sidebar: 222 28% 13%;
+    --sidebar-foreground: 214 35% 96%;
+    --sidebar-primary: 164 66% 48%;
+    --sidebar-primary-foreground: 222 32% 9%;
+    --sidebar-accent: 219 22% 19%;
+    --sidebar-accent-foreground: 214 35% 96%;
+    --sidebar-border: 219 18% 27%;
+    --sidebar-ring: 164 66% 48%;
+    --chart-1: 164 66% 48%;
+    --chart-2: 207 72% 61%;
+    --chart-3: 43 88% 60%;
+    --chart-4: 264 70% 69%;
+    --chart-5: 219 14% 68%;
+    --surface-elevated: 222 24% 16%;
+    --surface-section: 222 26% 13%;
+    --surface-hover: 219 21% 24%;
+    --success: 153 58% 48%;
+    --info: 205 78% 62%;
+    --warning: 42 88% 58%;
+    --danger: 0 66% 62%;
+    --purple: 262 72% 68%;
+    --orange: 28 86% 60%;
+    --data-attack: 153 58% 48%;
+    --data-defense: 205 78% 62%;
+    --data-rate: 42 88% 58%;
+    --data-dps: 262 72% 68%;
+    --data-boss: 28 86% 60%;
+    --data-weapon: 164 62% 50%;
+    --data-dingyin: 195 78% 58%;
+    --data-xinfa: 33 86% 60%;
   }
 
   .light {
-    --background: 0 0% 100%;
-    --foreground: 235 42% 10%;
-    --card: 0 0% 97%;
-    --card-foreground: 235 42% 10%;
-    --popover: 0 0% 97%;
-    --popover-foreground: 235 42% 10%;
-    --primary: 155 75% 38%;
+    --background: 210 30% 97%;
+    --foreground: 222 32% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 32% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 32% 13%;
+    --primary: 164 62% 35%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 92%;
-    --secondary-foreground: 235 42% 10%;
-    --muted: 0 0% 90%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 0 0% 92%;
-    --accent-foreground: 235 42% 10%;
-    --destructive: 0 72% 50%;
+    --secondary: 214 25% 92%;
+    --secondary-foreground: 222 32% 13%;
+    --muted: 214 24% 88%;
+    --muted-foreground: 217 12% 43%;
+    --accent: 204 48% 91%;
+    --accent-foreground: 205 65% 25%;
+    --destructive: 0 68% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 85%;
-    --input: 0 0% 88%;
-    --ring: 155 75% 38%;
-    --surface-elevated: 0 0% 95%;
-    --surface-section: 0 0% 98%;
-    --surface-hover: 0 0% 88%;
-    --data-attack: 155 75% 38%;
-    --data-defense: 200 85% 50%;
-    --data-rate: 48 96% 45%;
-    --data-dps: 262 83% 55%;
-    --data-boss: 48 85% 45%;
-    --data-weapon: 155 60% 42%;
-    --data-dingyin: 200 80% 48%;
-    --data-xinfa: 32 95% 48%;
+    --border: 215 20% 84%;
+    --input: 215 22% 88%;
+    --ring: 164 62% 35%;
+    --surface-elevated: 0 0% 100%;
+    --surface-section: 214 28% 94%;
+    --surface-hover: 214 23% 88%;
+    --success: 153 58% 34%;
+    --info: 205 72% 43%;
+    --warning: 40 82% 42%;
+    --danger: 0 64% 48%;
+    --purple: 262 56% 50%;
+    --orange: 28 78% 45%;
+    --data-attack: 153 58% 34%;
+    --data-defense: 205 72% 43%;
+    --data-rate: 40 82% 42%;
+    --data-dps: 262 56% 50%;
+    --data-boss: 28 78% 45%;
+    --data-weapon: 164 58% 35%;
+    --data-dingyin: 195 76% 38%;
+    --data-xinfa: 33 78% 43%;
   }
 }
 
@@ -112,10 +124,11 @@ body {
 }
 
 .surface-panel {
-  background: rgba(24, 27, 33, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: hsl(var(--surface-elevated) / 0.88);
+  border: 1px solid hsl(var(--border) / 0.72);
   border-radius: 8px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 18px 44px hsl(222 40% 4% / 0.24);
+  backdrop-filter: blur(10px);
 }
 
 .toolbar-panel {
@@ -151,33 +164,33 @@ body {
 }
 
 .btn-primary {
-  background: #34d399;
-  color: #101418;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .btn-primary:hover {
-  background: #6ee7b7;
+  background: hsl(var(--primary) / 0.88);
 }
 
 .btn-secondary {
-  background: rgba(148, 163, 184, 0.12);
-  color: #d1d5db;
-  border-color: rgba(148, 163, 184, 0.16);
+  background: hsl(var(--secondary) / 0.84);
+  color: hsl(var(--secondary-foreground));
+  border-color: hsl(var(--border) / 0.72);
 }
 
 .btn-secondary:hover {
-  background: rgba(148, 163, 184, 0.18);
-  color: #f9fafb;
+  background: hsl(var(--surface-hover));
+  color: hsl(var(--foreground));
 }
 
 .btn-danger {
-  background: rgba(248, 113, 113, 0.12);
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.2);
+  background: hsl(var(--danger) / 0.12);
+  color: hsl(var(--danger));
+  border-color: hsl(var(--danger) / 0.26);
 }
 
 .btn-danger:hover {
-  background: rgba(248, 113, 113, 0.18);
+  background: hsl(var(--danger) / 0.18);
 }
 
 .icon-btn {
@@ -199,7 +212,7 @@ body {
 }
 
 .filter-label {
-  color: #9ca3af;
+  color: hsl(var(--muted-foreground));
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -304,29 +317,29 @@ body {
 }
 
 .light .surface-panel {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  background: hsl(var(--surface-elevated) / 0.94);
+  border-color: hsl(var(--border));
+  box-shadow: 0 12px 34px hsl(220 28% 45% / 0.10);
 }
 
 .light .btn-primary {
-  background: #10b981;
+  background: hsl(var(--primary));
   color: #ffffff;
 }
 
 .light .btn-primary:hover {
-  background: #059669;
+  background: hsl(var(--primary) / 0.88);
 }
 
 .light .btn-secondary {
-  background: rgba(0, 0, 0, 0.06);
-  color: #374151;
-  border-color: rgba(0, 0, 0, 0.1);
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-color: hsl(var(--border));
 }
 
 .light .btn-secondary:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #111827;
+  background: hsl(var(--surface-hover));
+  color: hsl(var(--foreground));
 }
 
 .light .filter-label {
@@ -343,9 +356,9 @@ body {
 
 /* 白天模式: 覆盖硬编码的灰色背景 */
 .light .equipment-card {
-  background: #ffffff;
-  border-color: #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background: hsl(var(--card));
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 22px hsl(220 28% 45% / 0.08);
 }
 
 .light .equipment-card:hover {
@@ -353,60 +366,202 @@ body {
   box-shadow: 0 0 12px hsl(var(--primary) / 0.1);
 }
 
+.light [class*="bg-gray-900"],
 .light [class*="bg-gray-800"] {
-  background-color: #ffffff;
+  background-color: hsl(var(--card));
 }
 
 .light [class*="bg-gray-700"] {
-  background-color: #f3f4f6;
+  background-color: hsl(var(--surface-section));
 }
 
 .light .bg-gray-600\/30 {
-  background-color: rgb(243 244 246 / 0.6);
+  background-color: hsl(var(--muted) / 0.72);
 }
 
 .light .bg-gray-500\/70 {
-  background-color: rgb(229 231 235 / 0.8);
+  background-color: hsl(var(--muted) / 0.86);
 }
 
 .light .from-gray-700\/50 {
-  --tw-gradient-from: #f9fafb;
+  --tw-gradient-from: hsl(var(--surface-section));
 }
 
 .light .to-gray-800\/50 {
-  --tw-gradient-to: #ffffff;
+  --tw-gradient-to: hsl(var(--card));
 }
 
 .light .hover\:bg-gray-700:hover {
-  background-color: #e5e7eb;
+  background-color: hsl(var(--surface-hover));
 }
 
 .light .hover\:bg-gray-600:hover {
-  background-color: #d1d5db;
+  background-color: hsl(var(--muted));
 }
 
 /* 白天模式: 覆盖硬编码的灰色边框 */
 .light [class*="border-gray-700"] {
-  border-color: #e5e7eb;
+  border-color: hsl(var(--border));
 }
 
 /* 白天模式: 覆盖硬编码的灰色文字 */
 .light [class*="text-gray-200"],
 .light [class*="text-gray-300"] {
-  color: #111827;
+  color: hsl(var(--foreground));
 }
 
 .light [class*="text-gray-400"] {
-  color: #4b5563;
+  color: hsl(var(--muted-foreground));
 }
 
 .light [class*="text-gray-500"] {
-  color: #6b7280;
+  color: hsl(217 12% 50%);
 }
 
 /* 白天模式: 灰色背景区域内的白字改为深色 (xinfa 卡片有 bg-black 遮罩层，不受影响) */
 .light [class*="from-gray-"] .text-white,
 .light [class*="to-gray-"] .text-white,
 .light [class*="bg-gray-7"] .text-white {
-  color: #111827;
+  color: hsl(var(--foreground));
+}
+
+.light [class*="bg-blue-500"] {
+  background-color: hsl(var(--info) / 0.12);
+}
+
+.light [class*="text-blue-"],
+.light [class*="text-cyan-"] {
+  color: hsl(var(--info));
+}
+
+.light [class*="border-blue-"] {
+  border-color: hsl(var(--info) / 0.28);
+}
+
+.light .bg-blue-500,
+.light .bg-blue-600 {
+  background-color: hsl(var(--info));
+}
+
+.light .hover\:bg-blue-500:hover,
+.light .hover\:bg-blue-600:hover,
+.light .hover\:bg-blue-700:hover {
+  background-color: hsl(var(--info) / 0.88);
+}
+
+.light [class*="bg-green-500"],
+.light [class*="bg-emerald-500"] {
+  background-color: hsl(var(--success) / 0.13);
+}
+
+.light [class*="text-green-"],
+.light [class*="text-emerald-"] {
+  color: hsl(var(--success));
+}
+
+.light [class*="border-green-"],
+.light [class*="border-emerald-"] {
+  border-color: hsl(var(--success) / 0.30);
+}
+
+.light .bg-green-500,
+.light .bg-green-600,
+.light .bg-emerald-500,
+.light .bg-emerald-600 {
+  background-color: hsl(var(--success));
+}
+
+.light .hover\:bg-green-500:hover,
+.light .hover\:bg-green-600:hover,
+.light .hover\:bg-green-700:hover,
+.light .hover\:bg-emerald-500:hover,
+.light .hover\:bg-emerald-600:hover,
+.light .hover\:bg-emerald-700:hover {
+  background-color: hsl(var(--success) / 0.88);
+}
+
+.light [class*="bg-yellow-"],
+.light [class*="bg-amber-"] {
+  background-color: hsl(var(--warning) / 0.14);
+}
+
+.light [class*="text-yellow-"],
+.light [class*="text-amber-"] {
+  color: hsl(var(--warning));
+}
+
+.light [class*="border-yellow-"],
+.light [class*="border-amber-"] {
+  border-color: hsl(var(--warning) / 0.32);
+}
+
+.light .bg-yellow-500,
+.light .bg-amber-500 {
+  background-color: hsl(var(--warning));
+}
+
+.light .hover\:bg-yellow-400:hover,
+.light .hover\:bg-yellow-500:hover,
+.light .hover\:bg-amber-400:hover,
+.light .hover\:bg-amber-500:hover {
+  background-color: hsl(var(--warning) / 0.88);
+}
+
+.light [class*="bg-purple-"] {
+  background-color: hsl(var(--purple) / 0.12);
+}
+
+.light [class*="text-purple-"] {
+  color: hsl(var(--purple));
+}
+
+.light [class*="border-purple-"] {
+  border-color: hsl(var(--purple) / 0.28);
+}
+
+.light .bg-purple-500,
+.light .bg-purple-600,
+.light .bg-purple-700 {
+  background-color: hsl(var(--purple));
+}
+
+.light .hover\:bg-purple-500:hover,
+.light .hover\:bg-purple-600:hover,
+.light .hover\:bg-purple-700:hover {
+  background-color: hsl(var(--purple) / 0.88);
+}
+
+.light [class*="bg-orange-"] {
+  background-color: hsl(var(--orange) / 0.12);
+}
+
+.light [class*="text-orange-"] {
+  color: hsl(var(--orange));
+}
+
+.light [class*="border-orange-"] {
+  border-color: hsl(var(--orange) / 0.28);
+}
+
+.light [class*="bg-red-"] {
+  background-color: hsl(var(--danger) / 0.11);
+}
+
+.light [class*="text-red-"] {
+  color: hsl(var(--danger));
+}
+
+.light [class*="border-red-"] {
+  border-color: hsl(var(--danger) / 0.28);
+}
+
+.light .bg-red-500,
+.light .bg-red-600 {
+  background-color: hsl(var(--danger));
+}
+
+.light .hover\:bg-red-500:hover,
+.light .hover\:bg-red-600:hover,
+.light .hover\:bg-red-700:hover {
+  background-color: hsl(var(--danger) / 0.88);
 }
