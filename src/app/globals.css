@@ -49,6 +49,39 @@
     --data-dingyin: 200 80% 58%;
     --data-xinfa: 32 95% 60%;
   }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 235 42% 10%;
+    --card: 0 0% 97%;
+    --card-foreground: 235 42% 10%;
+    --popover: 0 0% 97%;
+    --popover-foreground: 235 42% 10%;
+    --primary: 155 75% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 92%;
+    --secondary-foreground: 235 42% 10%;
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 92%;
+    --accent-foreground: 235 42% 10%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 85%;
+    --input: 0 0% 88%;
+    --ring: 155 75% 38%;
+    --surface-elevated: 0 0% 95%;
+    --surface-section: 0 0% 98%;
+    --surface-hover: 0 0% 88%;
+    --data-attack: 155 75% 38%;
+    --data-defense: 200 85% 50%;
+    --data-rate: 48 96% 45%;
+    --data-dps: 262 83% 55%;
+    --data-boss: 48 85% 45%;
+    --data-weapon: 155 60% 42%;
+    --data-dingyin: 200 80% 48%;
+    --data-xinfa: 32 95% 48%;
+  }
 }
 
 body {
@@ -268,4 +301,112 @@ body {
   inset: 0;
   background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.08), transparent);
   animation: shimmer 2.5s infinite;
+}
+
+.light .surface-panel {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.light .btn-primary {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.light .btn-primary:hover {
+  background: #059669;
+}
+
+.light .btn-secondary {
+  background: rgba(0, 0, 0, 0.06);
+  color: #374151;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.light .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #111827;
+}
+
+.light .filter-label {
+  color: #6b7280;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.3);
+}
+
+/* 白天模式: 覆盖硬编码的灰色背景 */
+.light .equipment-card {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.light .equipment-card:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.1);
+}
+
+.light [class*="bg-gray-800"] {
+  background-color: #ffffff;
+}
+
+.light [class*="bg-gray-700"] {
+  background-color: #f3f4f6;
+}
+
+.light .bg-gray-600\/30 {
+  background-color: rgb(243 244 246 / 0.6);
+}
+
+.light .bg-gray-500\/70 {
+  background-color: rgb(229 231 235 / 0.8);
+}
+
+.light .from-gray-700\/50 {
+  --tw-gradient-from: #f9fafb;
+}
+
+.light .to-gray-800\/50 {
+  --tw-gradient-to: #ffffff;
+}
+
+.light .hover\:bg-gray-700:hover {
+  background-color: #e5e7eb;
+}
+
+.light .hover\:bg-gray-600:hover {
+  background-color: #d1d5db;
+}
+
+/* 白天模式: 覆盖硬编码的灰色边框 */
+.light [class*="border-gray-700"] {
+  border-color: #e5e7eb;
+}
+
+/* 白天模式: 覆盖硬编码的灰色文字 */
+.light [class*="text-gray-200"],
+.light [class*="text-gray-300"] {
+  color: #111827;
+}
+
+.light [class*="text-gray-400"] {
+  color: #4b5563;
+}
+
+.light [class*="text-gray-500"] {
+  color: #6b7280;
+}
+
+/* 白天模式: 灰色背景区域内的白字改为深色 (xinfa 卡片有 bg-black 遮罩层，不受影响) */
+.light [class*="from-gray-"] .text-white,
+.light [class*="to-gray-"] .text-white,
+.light [class*="bg-gray-7"] .text-white {
+  color: #111827;
 }

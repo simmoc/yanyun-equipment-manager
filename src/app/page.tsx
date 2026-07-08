@@ -19,14 +19,14 @@ import {
   ExportModal,
   AboutModal,
   EquipmentCard,
-  TuningAssistantReport,
+  TuningAssistantModal,
   QRCodeAuthModal,
   SelectRoleModal,
   DPSGraduationPanel,
 } from '@/components';
 import {
   LogIn, LogOut, Share2, RefreshCw, Trash2, Download, Upload, Bot,
-  Check, User, ChevronDown, ArrowUpDown, Plus
+  Check, User, ChevronDown, ArrowUpDown, Plus, Sun, Moon
 } from 'lucide-react';
 
 export default function Home() {
@@ -74,6 +74,18 @@ export default function Home() {
   const [showTuningAssistant, setShowTuningAssistant] = useState(false);
   const [showQRCodeAuth, setShowQRCodeAuth] = useState(false);
   const [showSelectRoleModal, setShowSelectRoleModal] = useState(false);
+  const [isLightTheme, setIsLightTheme] = useState(false);
+
+  useEffect(() => {
+    setIsLightTheme(document.documentElement.classList.contains('light'));
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isLightTheme;
+    setIsLightTheme(next);
+    document.documentElement.classList.toggle('light', next);
+    localStorage.setItem('theme', next ? 'light' : 'dark');
+  };
 
   useEffect(() => {
     if (pendingRoleSelector) {
@@ -481,7 +493,12 @@ export default function Home() {
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-300/80">Where Winds Meet</div>
             <h1 className="text-2xl md:text-3xl font-bold text-emerald-300">燕云十六声装备毕业率管理器</h1>
           </div>
-          <Button variant="outline" onClick={() => setShowAboutModal(true)}>关于本网站</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" onClick={toggleTheme} title={isLightTheme ? '切换至夜间模式' : '切换至白天模式'}>
+              {isLightTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </Button>
+            <Button variant="outline" onClick={() => setShowAboutModal(true)}>关于本网站</Button>
+          </div>
         </header>
 
         <Card className="mb-6">
@@ -514,11 +531,9 @@ export default function Home() {
                         {selectedCharacter.level && <div className="text-sm text-muted-foreground">等级 {selectedCharacter.level}</div>}
                         {selectedCharacter.server_name && <div className="text-sm text-muted-foreground">{selectedCharacter.server_name}</div>}
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => setShowSelectRoleModal(true)} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10" title="切换角色">
-                        <ArrowUpDown className="w-4 h-4" />
+                      <Button variant="ghost" onClick={() => setShowSelectRoleModal(true)} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10">
+                        <ArrowUpDown className="w-4 h-4 mr-1.5" />切换角色
                       </Button>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
                       <Button variant="outline" size="sm" onClick={handleShareCharacter} className="border-primary/30 text-primary hover:bg-primary/10">
                         <Share2 className="w-4 h-4 mr-1.5" />分享角色
                       </Button>
@@ -526,12 +541,11 @@ export default function Home() {
                         <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                         {isRefreshing ? '刷新中...' : '刷新数据'}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setShowQRCodeAuth(true)} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
+                      <Button variant="outline" size="sm" onClick={() => { clearAuthCredentials(); setSelectedCharacter(null); setSelectedPlan(null); setEquipments([]); setRolePanelData(null); localStorage.removeItem('qrcode_auth_cache'); setShowQRCodeAuth(true); }} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
                         <LogOut className="w-4 h-4 mr-1.5" />退出账号
                       </Button>
-                      <Button variant="outline" size="sm" onClick={handleDeleteCharacter} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
-                        <Trash2 className="w-4 h-4 mr-1.5" />删除角色
-                      </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
                       <Button variant="outline" size="sm" onClick={() => setShowExportModal(true)} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
                         <Download className="w-4 h-4 mr-1.5" />导出/导入
                       </Button>
@@ -547,31 +561,8 @@ export default function Home() {
         </Card>
 
         {selectedCharacter ? (
-          showTuningAssistant ? (
-            <div className="surface-panel p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-700/70 pb-3">
-                <div>
-                  <h2 className="text-lg font-bold text-purple-300">调号建议</h2>
-                  <p className="text-sm text-gray-400">基于当前装备、角色面板和所选方案生成。</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowTuningAssistant(false)}
-                  className="btn btn-secondary"
-                >
-                  返回装备列表
-                </button>
-              </div>
-              <TuningAssistantReport
-                equipments={equipments}
-                plan={selectedPlan}
-                rolePanelData={rolePanelData}
-                xinfaNameMap={xinfaNameMap}
-              />
-            </div>
-          ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-3">
               <div className="surface-panel filter-panel">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="filter-group">
@@ -582,7 +573,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setShowNewEquipmentModal(true)} className="btn btn-primary">新建装备</button>
                 </div>
                 <div className="filter-group mt-3 border-t border-gray-700/70 pt-3">
                   <span className="filter-label">部位</span>
@@ -722,7 +712,6 @@ export default function Home() {
               />
             </div>
           </div>
-          )
         ) : (
           <div className="surface-panel mx-auto max-w-2xl px-6 py-10 text-center">
             <h2 className="mb-3 text-xl font-semibold text-white">选择角色开始计算</h2>
@@ -779,6 +768,14 @@ export default function Home() {
           onSelect={handleBindGameRole}
           onSelectCharacter={handleSelectCharacter}
           isLoading={isLoadingRolePanel}
+        />
+        <TuningAssistantModal
+          isOpen={showTuningAssistant}
+          onClose={() => setShowTuningAssistant(false)}
+          equipments={equipments}
+          plan={selectedPlan}
+          rolePanelData={rolePanelData}
+          xinfaNameMap={xinfaNameMap}
         />
       </main>
     </div>

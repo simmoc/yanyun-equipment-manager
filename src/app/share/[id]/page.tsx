@@ -153,9 +153,9 @@ export default function SharePage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Equipment Grid */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <h2 className="text-base font-bold mb-3 text-green-400">装备 ({equipments.length})</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {equipments.map(equipment => {

@@ -246,10 +246,10 @@ export const SCHOOL_CHECK_TYPES: Record<string, string | null> = {
 };
 
 /** 110 阶右侧定音满值 (Excel B21/B22) */
-export const DINGYIN_BONUS_MAX_110 = 0.32;
+export const DINGYIN_BONUS_MAX_110 = 0.368;
 
 /** 110 阶左侧外功穿透定音满值 (Excel D2 满值: 58.4 + 征人归 5.1) */
-export const DINGYIN_PENETRATION_MAX_110 = 63.5;
+export const DINGYIN_PENETRATION_MAX_110 = 67.2;
 
 export const B21 = DINGYIN_BONUS_MAX_110;
 

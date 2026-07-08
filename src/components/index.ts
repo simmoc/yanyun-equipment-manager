@@ -9,6 +9,7 @@ export * from './ImportCapturedModal';
 export * from './EquipmentCard';
 export * from './PlanCard';
 export * from './TuningAssistantReport';
+export * from './TuningAssistantModal';
 export * from './QRCodeAuthModal';
 export * from './SelectRoleModal';
 export * from './Toast';

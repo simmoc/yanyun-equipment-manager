@@ -14,7 +14,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            try {
+              var t = localStorage.getItem('theme');
+              if (t === 'light') document.documentElement.classList.add('light');
+            } catch(e) {}
+          `
+        }} />
+      </head>
       <body className="antialiased">
         <TooltipProvider delayDuration={300}>
           {children}
