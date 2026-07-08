@@ -137,9 +137,9 @@ const formatValue = (value: number, attrName: string): string => {
 };
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition">
-      <div className="p-2.5 border-b border-gray-700">
-        <div className="flex gap-2">
+    <div className="equipment-card-shell bg-gray-800 overflow-hidden border border-gray-700 transition">
+      <div className="p-3 border-b border-gray-700">
+        <div className="flex gap-2.5">
           <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-700 flex items-center justify-center flex-none">
             {equipImage ? (
               <img src={equipImage} alt={equipment.name} className="w-full h-full object-cover" />
@@ -149,7 +149,7 @@ const formatValue = (value: number, attrName: string): string => {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-gray-200 font-medium text-[13px] truncate leading-tight">{equipment.name}</h3>
-            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
               <span className="text-gray-500 text-[11px]">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
               {equipment.level > 0 && (
                 <span className="px-1 py-[1px] bg-blue-500/20 text-blue-400 text-[10px] rounded">
@@ -176,12 +176,12 @@ const formatValue = (value: number, attrName: string): string => {
         </div>
       </div>
 
-      <div className="px-2.5 py-2 space-y-1.5">
+      <div className="px-3 py-2.5 space-y-2">
         {builtInAttributes.length > 0 && (
-          <div className="space-y-[2px]">
+          <div className="space-y-1">
             <div className="text-[9px] text-gray-500">基础属性</div>
             {builtInAttributes.map((attr, index) => (
-              <div key={index} className="flex items-center justify-between px-1.5 py-1 bg-gray-700/30 rounded">
+              <div key={index} className="flex items-center justify-between gap-2 px-1.5 py-1 bg-gray-700/30 rounded">
                 <span className="text-gray-300 text-[11px]">{attr.name}</span>
                 <span className="text-green-400 text-[11px] font-medium">{formatValue(attr.value, attr.name)}</span>
               </div>
@@ -189,7 +189,7 @@ const formatValue = (value: number, attrName: string): string => {
           </div>
         )}
         {affixAttributes.length > 0 && (
-          <div className="space-y-[2px]">
+          <div className="space-y-1">
             <div className="text-[9px] text-gray-500">词条</div>
             {affixAttributes.map((attr, index) => {
               const quality = attr.quality || 3;
@@ -197,7 +197,7 @@ const formatValue = (value: number, attrName: string): string => {
               const isMax = attr.is_main;
               const affixColor = getScoreColor(rate);
               return (
-                <div key={index} className={`flex items-center justify-between px-1.5 py-1 rounded ${rate >= 95 ? 'bg-green-500/20' : rate >= 80 ? 'bg-blue-500/20' : rate >= 60 ? 'bg-gray-700/30' : 'bg-gray-700/20'}`}>
+                <div key={index} className={`flex items-center justify-between gap-2 px-1.5 py-1 rounded ${rate >= 95 ? 'bg-green-500/20' : rate >= 80 ? 'bg-blue-500/20' : rate >= 60 ? 'bg-gray-700/30' : 'bg-gray-700/20'}`}>
                   <div className="flex items-center gap-1 min-w-0">
                     {isMax && <span className="text-amber-400 text-[9px] mr-0.5">荐</span>}
                     <span className={`${affixColor} text-[11px] truncate`}>{attr.name}</span>
@@ -226,13 +226,13 @@ const formatValue = (value: number, attrName: string): string => {
         <div className="grid grid-cols-3 border-t border-gray-700 text-[11px]">
           <button
             onClick={onEdit}
-            className="py-1.5 text-gray-300 hover:bg-gray-700"
+            className="py-2 text-gray-300 hover:bg-gray-700"
           >
             编辑
           </button>
           <button
             onClick={() => void (equipment.is_wearing ? onUnwear() : onWear())}
-            className="py-1.5 text-emerald-300 hover:bg-gray-700 border-l border-gray-700"
+            className="py-2 text-emerald-300 hover:bg-gray-700 border-l border-gray-700"
           >
             {equipment.is_wearing ? '卸下' : '穿上'}
           </button>
@@ -240,7 +240,7 @@ const formatValue = (value: number, attrName: string): string => {
             onClick={() => {
               if (window.confirm('删除这件装备？')) void onDelete();
             }}
-            className="py-1.5 text-red-300 hover:bg-gray-700 border-l border-gray-700"
+            className="py-2 text-red-300 hover:bg-gray-700 border-l border-gray-700"
           >
             删除
           </button>

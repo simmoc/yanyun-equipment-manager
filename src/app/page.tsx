@@ -504,7 +504,7 @@ export default function Home() {
           </div>
         </header>
 
-        <Card className="mb-6">
+        <Card className="auth-panel">
           <CardContent className="p-4">
             {!authCredentials ? (
               <div className="flex items-center gap-4 w-full">
@@ -564,8 +564,8 @@ export default function Home() {
         </Card>
 
         {selectedCharacter ? (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-3">
+          <div className="main-layout">
+            <div className="content-column">
               <div className="surface-panel filter-panel">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="filter-group">
@@ -577,7 +577,7 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-                <div className="filter-group mt-3 border-t border-gray-700/70 pt-3">
+                <div className="filter-group filter-separator">
                   <span className="filter-label">部位</span>
                   <button onClick={() => setSlotFilter('全部')} className={`btn ${slotFilter === '全部' ? 'btn-primary' : 'btn-secondary'}`}>全部</button>
                   {EQUIPMENT_SLOTS.map(slot => (
@@ -586,7 +586,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-4">
+              <div className="equipment-grid">
                 {filteredEquipments.sort((a, b) => {
                   const slotOrder = ['剑', '枪', '冠胄', '胸甲', '弓', '环', '佩', '胫甲', '腕甲', '射决'];
                   const aIndex = slotOrder.indexOf(a.slot);
@@ -610,9 +610,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="surface-panel p-3">
-                <h2 className="text-base font-bold mb-2 text-green-400">角色属性</h2>
+            <div className="sidebar-stack">
+              <div className="surface-panel sidebar-panel">
+                <h2 className="sidebar-panel-title text-base font-bold text-green-400">角色属性</h2>
                 {isLoadingRolePanel ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-400 mr-2" />
@@ -620,7 +620,7 @@ export default function Home() {
                   </div>
                 ) : rolePanelData ? (
                   <div className="space-y-3">
-                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                    <div className="stat-block bg-gray-700/50">
                       <div className="text-sm font-medium mb-1.5 text-orange-300">心法</div>
                       <div className="grid grid-cols-4 gap-1.5">
                         {Object.entries(rolePanelData?.['combat_plan.xinfa_info'] ?? rolePanelData?.xinfa_info ?? {}).map(([id, xinfa]) => {
@@ -641,9 +641,9 @@ export default function Home() {
                         })}
                       </div>
                     </div>
-                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                    <div className="stat-block bg-gray-700/50">
                       <div className="text-sm font-medium mb-1 text-yellow-300">三率属性</div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <div className="stat-grid grid grid-cols-2">
                         {[
                           ['精准概率', rolePanelData.ACR_PROB, false],
                           ['实际精准', rolePanelData.REAL_ACR_PROB, true],
@@ -661,9 +661,9 @@ export default function Home() {
                         ))}
                       </div>
                     </div>
-                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                    <div className="stat-block bg-gray-700/50">
                       <div className="text-sm font-medium mb-1 text-green-300">攻击属性</div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <div className="stat-grid grid grid-cols-2">
                         {[
                           { label: '最小外功', field: 'MIN_W_ATK', value: rolePanelData.MIN_W_ATK },
                           { label: '最大外功', field: 'MAX_W_ATK', value: rolePanelData.MAX_W_ATK },
@@ -685,9 +685,9 @@ export default function Home() {
                         ))}
                       </div>
                     </div>
-                    <div className="bg-gray-700/50 p-2 rounded-lg">
+                    <div className="stat-block bg-gray-700/50">
                       <div className="text-sm font-medium mb-1 text-blue-300">防御属性</div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <div className="stat-grid grid grid-cols-2">
                         {[
                           ['外攻防御', rolePanelData.W_DEF],
                           ['气血最大值', rolePanelData.hpMax],

@@ -324,7 +324,7 @@ export function DPSGraduationPanel({
   /* ── No panel ── */
   if (!rolePanelData) {
     return (
-      <div className="surface-panel p-3">
+      <div className="surface-panel sidebar-panel">
         <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
         <p className="text-gray-400 text-sm">暂无角色面板数据</p>
       </div>
@@ -338,7 +338,7 @@ export function DPSGraduationPanel({
       setSelectedFlowType={(v) => { setSelectedFlowType(v); setUserOverrode(false); setShowSelector(false); }}
     />;
     return (
-      <div className="surface-panel p-3">
+      <div className="surface-panel sidebar-panel">
         <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
         <div className="text-center py-3 text-gray-400 text-sm space-y-2">
           {!selectedPlan ? (
@@ -362,7 +362,7 @@ export function DPSGraduationPanel({
 
   if (!result || 'error' in result) {
     return (
-      <div className="surface-panel p-3">
+      <div className="surface-panel sidebar-panel">
         <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
         {showFlowBanner && <FlowBanner flow={resolvedFlowType} onSwitch={() => { setSelectedFlowType(null); setUserOverrode(true); setShowSelector(true); }} />}
         <p className="text-center py-3 text-gray-400 text-sm">{result?.error || '计算失败'}</p>
@@ -374,7 +374,7 @@ export function DPSGraduationPanel({
   const rate = res.毕业率数值, color = getRateColor(rate), label = getRateLabel(rate);
 
   return (
-    <div className="surface-panel p-3 animate-fade-in-up">
+    <div className="surface-panel sidebar-panel animate-fade-in-up">
       <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
       <div className="space-y-3">
         {showFlowBanner && <FlowBanner flow={resolvedFlowType} onSwitch={() => { setSelectedFlowType(null); setUserOverrode(true); setShowSelector(true); }} />}
@@ -457,7 +457,7 @@ function FlowSelector({ selectedFlowType, setSelectedFlowType }: {
   const availableFlows = FLOW_TYPES.filter(ft => FLOW_TO_SCHOOL_KEY[ft]);
 
   return (
-    <div className="surface-panel p-3">
+    <div className="surface-panel sidebar-panel">
       <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
       <div className="space-y-3">
         <p className="text-gray-400 text-sm">无法从心法自动识别流派，请手动选择：</p>
