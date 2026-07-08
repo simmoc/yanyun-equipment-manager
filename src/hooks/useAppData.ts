@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { initLocalDatabase, getNamespacedKey } from '@/lib/localStore';
 import { initDataSource, getDataSource, isLocalMode } from '@/lib/dataSource';
 import { getEquipmentsFromAuthCache, parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
-import { getConfigData } from '@/lib/configStore';
+import { ensureConfigData, getConfigData } from '@/lib/configStore';
 import { fetchNetEaseRoleInfo, fetchNetEaseRolePanel, fetchNetEaseRoles } from '@/lib/neteaseClient';
 import type { Character, Plan, Equipment, GameRole, AuthCredentials, RolePanelData } from '@/types';
 
@@ -19,6 +19,23 @@ export function useAppData() {
   const [rolePanelData, setRolePanelData] = useState<RolePanelData | null>(null);
   const [isLoadingRolePanel, setIsLoadingRolePanel] = useState(false);
   const [pendingRoleSelector, setPendingRoleSelector] = useState(false);
+
+  const hasUnresolvedEquipmentText = (equipmentList: Equipment[]) => {
+    return equipmentList.some(equipment =>
+      /^装备\d+$/.test(equipment.name) ||
+      /^套装\d+$/.test(equipment.suit_type || '') ||
+      equipment.attributes?.some(attr => /^词条\d+$/.test(attr.name))
+    );
+  };
+
+  const loadConfigForEquipment = async () => {
+    try {
+      return await ensureConfigData();
+    } catch (error) {
+      console.error('加载配置数据失败，使用当前缓存配置:', error);
+      return getConfigData();
+    }
+  };
 
   const fetchCharacters = async (): Promise<Character[]> => {
     try {
@@ -40,12 +57,7 @@ export function useAppData() {
   const fetchPlansAndEquipments = useCallback(async () => {
     if (!selectedCharacter) return;
 
-    if (!getConfigData()) {
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 100));
-        if (getConfigData()) break;
-      }
-    }
+    const configData = await loadConfigForEquipment();
 
     try {
       const ds = getDataSource();
@@ -87,7 +99,6 @@ export function useAppData() {
         });
 
         if (result.success && result.data?.roleInfo) {
-          const configData = getConfigData();
           const rawEquips = parseRawEquipments(result.data.roleInfo, configData);
           const equipmentsList = convertToEquipmentList(rawEquips);
 
@@ -120,6 +131,25 @@ export function useAppData() {
         localStorage.removeItem(`auth_${selectedCharacter.id}`);
       }
     }
+
+    const authDataStr = localStorage.getItem(`auth_${roleId}`);
+    if (authDataStr && configData) {
+      try {
+        const authData = JSON.parse(authDataStr);
+        const cachedEquipments = Array.isArray(authData.equipments) ? authData.equipments : [];
+        if (authData.roleInfo && (!cachedEquipments.length || hasUnresolvedEquipmentText(cachedEquipments))) {
+          const rawEquips = parseRawEquipments(authData.roleInfo, configData);
+          const equipmentsList = convertToEquipmentList(rawEquips);
+          authData.equipments = equipmentsList;
+          localStorage.setItem(`auth_${roleId}`, JSON.stringify(authData));
+          setEquipments([...equipmentsList, ...(await loadSavedEquipments())]);
+          return;
+        }
+      } catch (error) {
+        console.error('修复装备缓存失败:', error);
+      }
+    }
+
     const cached = getEquipmentsFromAuthCache(roleId, selectedCharacter.id);
     if (cached) {
       setEquipments([...cached, ...(await loadSavedEquipments())]);

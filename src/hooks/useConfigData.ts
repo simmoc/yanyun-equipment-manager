@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { EQUIPMENT_SLOTS, SUIT_TYPES } from '@/types';
 import type { EquipmentSlot, SuitType, XinfaData } from '@/types';
-import { setConfigData as saveConfigData } from '@/lib/configStore';
+import { ensureConfigData } from '@/lib/configStore';
 import type { FlowConfigData, FlowSkillData, FlowRotationAction } from '@/lib/graduationCalculator';
 
 export function useConfigData() {
@@ -19,12 +19,7 @@ export function useConfigData() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('/api/config');
-        const data = await response.json();
-        if (data.success) {
-          setConfigData(data.data);
-          saveConfigData(data.data);
-        }
+        setConfigData(await ensureConfigData());
       } catch (error) {
         console.error('获取配置数据失败:', error);
       }

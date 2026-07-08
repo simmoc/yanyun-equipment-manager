@@ -356,6 +356,7 @@ export async function createEquipmentLocal(
 export async function updateEquipmentLocal(
   equipmentId: string,
   updates: {
+    slot?: string;
     name?: string;
     level?: number;
     attributes?: object[];

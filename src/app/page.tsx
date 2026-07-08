@@ -6,6 +6,7 @@ import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT
 import { exportLocalData, importLocalData } from '@/lib/localStore';
 import { getDataSource } from '@/lib/dataSource';
 import { parseRawEquipments, convertToEquipmentList } from '@/lib/equipmentParser';
+import { ensureConfigData } from '@/lib/configStore';
 import { fetchNetEaseRoleInfo, fetchNetEaseRolePanel } from '@/lib/neteaseClient';
 import { useAppData, useConfigData } from '@/hooks';
 import { toast } from 'sonner';
@@ -255,7 +256,8 @@ export default function Home() {
       }
 
       if (roleInfoResult.success && roleInfoResult.data?.roleInfo) {
-        const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, configData);
+        const latestConfigData = await ensureConfigData().catch(() => configData);
+        const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, latestConfigData);
         const equipmentsList = convertToEquipmentList(rawEquips);
 
         const authKey = `auth_${selectedCharacter.role_id}`;
@@ -407,7 +409,8 @@ export default function Home() {
         server: gameRole.server
       });
 
-      const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, configData);
+      const latestConfigData = await ensureConfigData().catch(() => configData);
+      const rawEquips = parseRawEquipments(roleInfoResult.data.roleInfo, latestConfigData);
       const equipmentsList = convertToEquipmentList(rawEquips);
 
       localStorage.setItem(`auth_${character.role_id}`, JSON.stringify({
