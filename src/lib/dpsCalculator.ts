@@ -1,12 +1,12 @@
 /**
- * 燕云十六声 各流派 DPS / 毕业率计算器 v3.0
+ * 燕云十六声 各流派 DPS / 毕业率计算器 v4.0
  *
- * 公式验证: 全部6流派 587行数据 0.00%误差 (verified against base_excel)
+ * 公式验证: 110阶9流派 1115行数据 0.00%误差 (verified against base_excel)
  *
  * 核心公式:
  * 1. 5元素拆分: sum_elem (即时攻击值 × 技能倍率 + 固伤) × (1+穿透加成) × (1+伤害加成)
- * 2. B21特殊倍率: *(1+0.32) IF VLOOKUP(skill, 武学奇术!Col30) matches check_type
- * 3. 标准流派: K = 会心×BN + 会意×(1-BN-BO-BP) + 普通×BO + 擦伤×BP
+ * 2. 分类特殊倍率: *(1+bonus) IF VLOOKUP(skill, 武学奇术!Col30) matches specialBonuses
+ * 3. 标准流派: K = 会心×BN + 会意×BL + 普通×BO + 擦伤×BP
  * 4. 鸣金流派: L = 会心×BO + 会意×BM + 普通×BP + 擦伤×BQ; K = L × col31
  */
 
@@ -32,8 +32,18 @@ export interface SkillMultipliers {
   attributeFix: number;     // 属性固伤
 }
 
+/** 按技能分类配置的定音/特殊加成 */
+export type SpecialBonusMap = Record<string, number>;
+
+/** 结算行: 按 Excel 源行伤害汇总后乘倍率 */
+export interface LinkedDamage {
+  sourceRows: number[];
+  multiplier: number;
+}
+
 /** 单个技能行数据 (参考数据，来自 base_excel) */
 export interface RefSkillRow {
+  excelRow?: number;
   skill: string;
   count: number;
   elements: Record<string, ElementValues>;
@@ -52,6 +62,7 @@ export interface RefSkillRow {
   skillCategory: string | null;   // 技能类型 (对应Excel Col30)
   mingjinMultiplier: number;      // 鸣金倍率 (对应Excel Col31)
   isSpecial: boolean;
+  linkedDamage?: LinkedDamage;
 }
 
 /** 流派参考数据 */
@@ -61,6 +72,7 @@ export interface SchoolRefData {
   isMingjin: boolean;
   checkType: string | null;
   B21: number | null;
+  specialBonuses?: SpecialBonusMap;
   /** 参考外功穿透百分比 (Excel D2, 如 63.5 表示 63.5%) */
   refPenetBase: number;
   rows: RefSkillRow[];
@@ -96,7 +108,7 @@ export interface SkillDetail {
   normalAttackRatio: number;  // BO/BP
   grazeRatio: number;         // BP/BQ
   bashRateRatio: number;      // 会意占比
-  /** B21特殊倍率: 1.0 或 1.32 */
+  /** 分类特殊倍率: 1 + 对应技能分类加成 */
   specialMultiplier: number;
   /** 鸣金倍率 (其余流派=1.0) */
   mingjinMultiplier: number;
@@ -136,15 +148,17 @@ export interface UserCombatStats {
   equipment: UserEquipment;
   /** 战斗模式 */
   mode?: '普通' | '精英';
-  /** 首领增伤 (从装备词条「对首领单位增伤」提取, 默认 0.088) */
+  /** 首领增伤 (从装备词条「对首领单位增伤」提取, 默认使用参考表值) */
   bossBonus?: number;
-  /** 定音增伤 (从装备定音词条提取, 或贷款定音时使用 0.32) */
+  /** 定音增伤 (从装备定音词条提取, 或贷款定音时使用 110 阶满值) */
   dingyinBonus?: number;
-  /** 全武增 (从装备词条「全武学增效」提取, 默认 0.084, 牵丝霖为 0) */
+  /** 按技能分类覆盖定音/特殊加成, 如 { 老鼠: 0.32 } */
+  specialBonuses?: SpecialBonusMap;
+  /** 全武增 (从装备词条「全武学增效」提取, 默认使用参考表值) */
   allWeaponBonus?: number;
-  /** 武器增 (从装备词条「X武学增伤」提取, 默认 0.086, 牵丝霖为 0) */
+  /** 武器增 (从装备词条「X武学增伤」提取, 默认使用参考表值) */
   weaponBonus?: number;
-  /** 外功穿透定音百分比 (从装备定音词条「外功穿透」提取, 单位: %, 如 32 表示 32%, 或贷款定音时使用默认值) */
+  /** 外功穿透定音百分比 (从装备定音词条「外功穿透」提取, 单位: %, 如 63.5 表示 63.5%, 或贷款定音时使用 110 阶满值) */
   dingyinPenetration?: number;
 }
 
@@ -218,26 +232,35 @@ export const SKILL_TYPE_TABLE: Record<string, SkillTypeInfo> = {
   'N/a':              { skillType: null,     mingjinMult: 1.1 },
 };
 
-// School check type for B21 special multiplier
+// School check type fallback for special multiplier.
 export const SCHOOL_CHECK_TYPES: Record<string, string | null> = {
-  '牵丝霖_105': '蓄力技',
-  '破竹尘_105': '回旋伞',
-  '裂石威_105': '蓄力技',
-  '裂石钧_105': '蓄力技',
-  '鸣金影_105': '流血',
-  '鸣金虹_105': '蓄力技',
+  '牵丝玉_110': '弹道',
+  '牵丝翊_110': '特殊技',
+  '破竹尘_110': '回旋伞',
+  '破竹风_110': '轻击',
+  '破竹鸢_110': '蓄力技',
+  '裂石威_110': '蓄力技',
+  '裂石钧_110': '蓄力技',
+  '鸣金影_110': '流血',
+  '鸣金虹_110': '蓄力技',
 };
 
-export const B21 = 0.32;
+/** 110 阶右侧定音满值 (Excel B21/B22) */
+export const DINGYIN_BONUS_MAX_110 = 0.32;
+
+/** 110 阶左侧外功穿透定音满值 (Excel D2 满值: 58.4 + 征人归 5.1) */
+export const DINGYIN_PENETRATION_MAX_110 = 63.5;
+
+export const B21 = DINGYIN_BONUS_MAX_110;
 
 /** 参考数据中内置的首领增伤值 (Excel B16) */
-export const REF_BOSS_BONUS = 0.088;
+export const REF_BOSS_BONUS = 0.0887;
 
-/** 参考数据中内置的全武增 (Excel B15) — 牵丝霖为 0, 其余为 0.084 */
-export const REF_ALL_WEAPON_BONUS = 0.084;
+/** 参考数据中内置的全武增 (Excel B15) */
+export const REF_ALL_WEAPON_BONUS = 0.0852;
 
-/** 参考数据中内置的武器增 (Excel B17) — 牵丝霖伞=0, 其余主武器=0.086 */
-export const REF_WEAPON_BONUS = 0.086;
+/** 参考数据中内置的武器增 (Excel B17) */
+export const REF_WEAPON_BONUS = 0.0852;
 
 /** 流派 → 主武器 → 武器增伤词条名 (用于从装备提取) */
 export const SCHOOL_WEAPON_AFFIX_MAP: Record<string, string> = {
@@ -247,8 +270,8 @@ export const SCHOOL_WEAPON_AFFIX_MAP: Record<string, string> = {
   '鸣金': '剑武学增伤',
 };
 
-/** 外功穿透定音默认值 (与定音增伤逻辑一致, 从装备提取或贷款) */
-export const DEFAULT_DINGYIN_PENETRATION = 0;
+/** 外功穿透定音贷款默认值 */
+export const DEFAULT_DINGYIN_PENETRATION = DINGYIN_PENETRATION_MAX_110;
 
 /**
  * 外功穿透百分比 → 游戏内穿透系数 的转换因子
@@ -263,14 +286,25 @@ const PENET_PCT_TO_RATIO = 1 / 200;
 
 /**
  * 检测技能是否触发定音增伤
- * 当技能的 skillCategory 匹配流派的 checkType 时触发
+ * 优先使用参考数据中抽取的 specialBonuses, 无行内分类时回退到 SCHOOL_CHECK_TYPES.
  * @param dingyinBonus - 定音增伤值 (默认 0.32)
  */
-export function getSkillSpecialMultiplier(schoolKey: string, skillName: string, dingyinBonus: number = 0.32): number {
+export function getSkillSpecialMultiplier(
+  schoolKey: string,
+  skillName: string,
+  dingyinBonus: number = 0.32,
+  skillCategory?: string | null,
+  specialBonuses?: SpecialBonusMap
+): number {
+  const category = skillCategory ?? SKILL_TYPE_TABLE[skillName]?.skillType ?? null;
+
+  if (category && specialBonuses && Object.prototype.hasOwnProperty.call(specialBonuses, category)) {
+    return 1 + (specialBonuses[category] || 0);
+  }
+
   const checkType = SCHOOL_CHECK_TYPES[schoolKey];
   if (!checkType) return 1.0;
-  const info = SKILL_TYPE_TABLE[skillName];
-  if (info && info.skillType === checkType) {
+  if (category === checkType) {
     return 1 + dingyinBonus;
   }
   return 1.0;
@@ -280,7 +314,10 @@ export function getSkillSpecialMultiplier(schoolKey: string, skillName: string, 
  * 获取鸣金流派倍率 (对应 Excel Col31)
  * 非鸣金技能返回 1.0
  */
-export function getSkillMingjinMultiplier(skillName: string): number {
+export function getSkillMingjinMultiplier(skillName: string, rowMultiplier?: number): number {
+  if (typeof rowMultiplier === 'number' && Number.isFinite(rowMultiplier)) {
+    return rowMultiplier;
+  }
   const info = SKILL_TYPE_TABLE[skillName];
   if (info && info.mingjinMult) return info.mingjinMult;
   return 1.0;
@@ -352,6 +389,7 @@ export interface RowDPSResult {
   weightedDamage: number;     // L — 加权总伤害
   mingjinAdjustedDamage: number; // K — 鸣金调整后伤害
   specialMultiplier: number;  // B21 特殊倍率
+  isLinkedDamage?: boolean;
 }
 
 /**
@@ -380,7 +418,8 @@ export function calcRowDPS(
   penetDelta: number = 0,
   refBossBonus: number = REF_BOSS_BONUS,
   refAllWeaponBonus: number = REF_ALL_WEAPON_BONUS,
-  refWeaponBonus: number = REF_WEAPON_BONUS
+  refWeaponBonus: number = REF_WEAPON_BONUS,
+  specialBonuses?: SpecialBonusMap
 ): RowDPSResult {
   const {
     generalBonus, specialBonus, critMultiplier, bashMultiplier,
@@ -388,7 +427,7 @@ export function calcRowDPS(
     count,
     elements,
     weaponBaseRate, weaponBaseFix, attributeRate, attributeFix,
-    skill,
+    skill, skillCategory, mingjinMultiplier,
   } = rowData;
 
   const skillMults: SkillMultipliers = {
@@ -396,7 +435,7 @@ export function calcRowDPS(
   };
 
   // 定音增伤: 只有当技能匹配流派的 checkType 时才触发
-  const specialMult = getSkillSpecialMultiplier(schoolKey, skill, dingyinBonus);
+  const specialMult = getSkillSpecialMultiplier(schoolKey, skill, dingyinBonus, skillCategory, specialBonuses);
 
   // 外功穿透定音: 仅当技能触发定音时叠加 penetDelta, 否则为 0
   const isDingyinTriggered = specialMult > 1;
@@ -429,12 +468,14 @@ export function calcRowDPS(
                    + bashDamage * bashRateRatio
                    + normalDamage * normalAttackRatio
                    + grazeDamage * grazeRatio;
-    const mingjinMult = getSkillMingjinMultiplier(skill);
+    const mingjinMult = getSkillMingjinMultiplier(skill, mingjinMultiplier);
     mingjinAdjustedDamage = weightedDamage * mingjinMult;
     dps = weightedDamage; // "期望" 列 = L, 非 K
   } else {
-    // 标准流派: K = crit×BN + bash×(1-BN-BO-BP) + norm×BO + graze×BP
-    const bashRatio = Math.max(0, 1 - critRateRatio - normalAttackRatio - grazeRatio);
+    // 标准流派: K = crit×BN + bash×BL + norm×BO + graze×BP
+    const bashRatio = typeof bashRateRatio === 'number'
+      ? bashRateRatio
+      : Math.max(0, 1 - critRateRatio - normalAttackRatio - grazeRatio);
     mingjinAdjustedDamage = critDamage * critRateRatio
                           + bashDamage * bashRatio
                           + normalDamage * normalAttackRatio
@@ -449,20 +490,80 @@ export function calcRowDPS(
   };
 }
 
+function createLinkedRowResult(weightedDamage: number): RowDPSResult {
+  return {
+    critDamage: 0,
+    bashDamage: 0,
+    normalDamage: 0,
+    grazeDamage: 0,
+    dps: weightedDamage,
+    weightedDamage,
+    mingjinAdjustedDamage: weightedDamage,
+    specialMultiplier: 1,
+    isLinkedDamage: true,
+  };
+}
+
+function calculateRowResults(
+  rows: RefSkillRow[],
+  schoolKey: string,
+  schoolWeapon: string,
+  isMingjin: boolean,
+  bossBonus: number,
+  dingyinBonus: number,
+  allWeaponBonus: number,
+  weaponBonus: number,
+  penetDelta: number,
+  refBossBonus: number,
+  refAllWeaponBonus: number,
+  refWeaponBonus: number,
+  specialBonuses?: SpecialBonusMap
+): RowDPSResult[] {
+  const results: RowDPSResult[] = new Array(rows.length);
+  const resultsByExcelRow = new Map<number, RowDPSResult>();
+
+  rows.forEach((row, index) => {
+    if (row.linkedDamage) return;
+
+    const result = calcRowDPS(row, schoolKey, schoolWeapon, isMingjin,
+      bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, penetDelta,
+      refBossBonus, refAllWeaponBonus, refWeaponBonus, specialBonuses);
+    results[index] = result;
+    if (typeof row.excelRow === 'number') {
+      resultsByExcelRow.set(row.excelRow, result);
+    }
+  });
+
+  rows.forEach((row, index) => {
+    if (!row.linkedDamage) return;
+
+    const sourceDamage = row.linkedDamage.sourceRows.reduce((sum, excelRow) => (
+      sum + (resultsByExcelRow.get(excelRow)?.weightedDamage ?? 0)
+    ), 0);
+    const result = createLinkedRowResult(sourceDamage * row.linkedDamage.multiplier);
+    results[index] = result;
+    if (typeof row.excelRow === 'number') {
+      resultsByExcelRow.set(row.excelRow, result);
+    }
+  });
+
+  return results;
+}
+
 // ─────────────────────────────────────────────
 // FlowType → schoolKey mapping
 // ─────────────────────────────────────────────
 export const FLOW_TO_SCHOOL_KEY: Record<FlowType, string | null> = {
-  '鸣金虹': '鸣金虹_105',
-  '鸣金影': '鸣金影_105',
-  '破竹尘': '破竹尘_105',
-  '破竹风': null,   // 100级, 无参考数据
-  '破竹鸢': null,   // 对比计算器, 无标准DPS
-  '裂石威': '裂石威_105',
-  '裂石钧': '裂石钧_105',
-  '牵丝玉': null,   // 100级, 无参考数据
-  '牵丝翊': null,   // 无参考数据
-  '牵丝霖': '牵丝霖_105',
+  '鸣金虹': '鸣金虹_110',
+  '鸣金影': '鸣金影_110',
+  '破竹尘': '破竹尘_110',
+  '破竹风': '破竹风_110',
+  '破竹鸢': '破竹鸢_110',
+  '裂石威': '裂石威_110',
+  '裂石钧': '裂石钧_110',
+  '牵丝玉': '牵丝玉_110',
+  '牵丝翊': '牵丝翊_110',
+  '牵丝霖': null,   // base_excel 暂无 110 阶参考表
 };
 
 // ─────────────────────────────────────────────
@@ -479,6 +580,20 @@ export class DPSGraduationCalculator {
   private _refTotalDPS_K: number;
   private _refTotalDamage: number;
 
+  private getSpecialBonuses(dingyinBonus?: number, overrides?: SpecialBonusMap): SpecialBonusMap | undefined {
+    const merged: SpecialBonusMap = { ...(this.schoolRef.specialBonuses ?? {}) };
+    const checkType = this.schoolRef.checkType ?? SCHOOL_CHECK_TYPES[this.schoolKey];
+
+    if (checkType && typeof dingyinBonus === 'number') {
+      merged[checkType] = dingyinBonus;
+    }
+    if (overrides) {
+      Object.assign(merged, overrides);
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
   constructor(schoolKey: string, schoolRef: SchoolRefData) {
     this.schoolKey = schoolKey;
     this.schoolRef = schoolRef;
@@ -486,21 +601,19 @@ export class DPSGraduationCalculator {
     this.mainWeapon = schoolRef.mainWeapon;
     this.battleTime = schoolRef.battleTime;
 
-    // 牵丝霖的 B15=0, B17=0, 其余流派 B15=0.084, B17=0.086
-    const isQiansilin = schoolKey === '牵丝霖_105';
+    // 牵丝霖暂无 110 阶参考表；保留 0 增益分支以兼容外部传入的旧 key.
+    const isQiansilin = schoolKey.startsWith('牵丝霖');
     const refAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
     const refWeapon = isQiansilin ? 0 : REF_WEAPON_BONUS;
+    const refDingyinBonus = schoolRef.B21 ?? B21;
+    const specialBonuses = this.getSpecialBonuses(refDingyinBonus);
 
     // 计算参考 DPS (基于参考数据行, 外功穿透定音=0 即参考值)
-    let totalWeighted = 0;
-    let totalMingjinAdjusted = 0;
-    for (const row of schoolRef.rows) {
-      const result = calcRowDPS(row, schoolKey, this.mainWeapon, this.isMingjin,
-        REF_BOSS_BONUS, 0.32, refAllWeapon, refWeapon, 0,
-        REF_BOSS_BONUS, refAllWeapon, refWeapon);
-      totalWeighted += result.weightedDamage;
-      totalMingjinAdjusted += result.mingjinAdjustedDamage;
-    }
+    const rowResults = calculateRowResults(schoolRef.rows, schoolKey, this.mainWeapon, this.isMingjin,
+      REF_BOSS_BONUS, refDingyinBonus, refAllWeapon, refWeapon, 0,
+      REF_BOSS_BONUS, refAllWeapon, refWeapon, specialBonuses);
+    const totalWeighted = rowResults.reduce((sum, result) => sum + result.weightedDamage, 0);
+    const totalMingjinAdjusted = rowResults.reduce((sum, result) => sum + result.mingjinAdjustedDamage, 0);
     this._refTotalDPS = Math.round(totalWeighted / this.battleTime);
     this._refTotalDPS_K = Math.round(totalMingjinAdjusted / this.battleTime);
     this._refTotalDamage = totalWeighted;
@@ -521,7 +634,7 @@ export class DPSGraduationCalculator {
    *
    * 乘数因子:
    *   generalBonus (AL 列): 参考数据已内置 3 个加法项:
-   *     REF_BOSS_BONUS(0.088) + REF_ALL_WEAPON_BONUS(0.084) + REF_WEAPON_BONUS(0.086)
+   *     REF_BOSS_BONUS + REF_ALL_WEAPON_BONUS + REF_WEAPON_BONUS
    *   bossBonus: 用户实际首领增伤, 替换参考值
    *   allWeaponBonus: 用户实际全武增, 替换参考值
    *   weaponBonus: 用户实际武器增, 替换参考值
@@ -529,12 +642,13 @@ export class DPSGraduationCalculator {
    */
   calculate(userStats: UserCombatStats): DPSResult {
     const { mode = '普通', equipment = {} } = userStats;
-    // 牵丝霖的 B15=0, B17=0, 其余流派默认 0.084/0.086
-    const isQiansilin = this.schoolKey === '牵丝霖_105';
+    // 牵丝霖暂无 110 阶参考表；保留 0 增益分支以兼容外部传入的旧 key.
+    const isQiansilin = this.schoolKey.startsWith('牵丝霖');
     const refAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
     const refWeapon = isQiansilin ? 0 : REF_WEAPON_BONUS;
     const bossBonus = userStats.bossBonus ?? REF_BOSS_BONUS;
-    const dingyinBonus = userStats.dingyinBonus ?? 0.32;
+    const dingyinBonus = userStats.dingyinBonus ?? (this.schoolRef.B21 ?? B21);
+    const specialBonuses = this.getSpecialBonuses(dingyinBonus, userStats.specialBonuses);
     const allWeaponBonus = userStats.allWeaponBonus ?? refAllWeapon;
     const weaponBonus = userStats.weaponBonus ?? refWeapon;
     // 外功穿透定音: 用户百分比 vs 参考 D2, 转换为穿透系数差值
@@ -557,19 +671,8 @@ export class DPSGraduationCalculator {
       };
     }
 
-    let totalWeightedDamage = 0;
     const skillDetails: SkillDetail[] = [];
-
-    for (const row of this.schoolRef.rows) {
-      const {
-        skill, count,
-        generalBonus, specialBonus, critMultiplier, bashMultiplier,
-        critRateRatio, normalAttackRatio, grazeRatio, bashRateRatio,
-        weaponBaseRate, weaponBaseFix, attributeRate, attributeFix,
-        mingjinMultiplier,
-      } = row;
-
-      // 合并用户装备数据到参考行
+    const mergedRows = this.schoolRef.rows.map((row): RefSkillRow => {
       const mergedElements: Record<string, ElementValues> = {};
       for (const elemName of ELEMENT_NAMES) {
         if (equipment[elemName]) {
@@ -585,11 +688,24 @@ export class DPSGraduationCalculator {
         }
       }
 
-      const mergedRow: RefSkillRow = { ...row, elements: mergedElements };
-      const result = calcRowDPS(mergedRow, this.schoolKey, this.mainWeapon, this.isMingjin,
-        bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, penetDelta,
-        REF_BOSS_BONUS, refAllWeapon, refWeapon);
-      totalWeightedDamage += result.weightedDamage;
+      return { ...row, elements: mergedElements };
+    });
+
+    const rowResults = calculateRowResults(mergedRows, this.schoolKey, this.mainWeapon, this.isMingjin,
+      bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, penetDelta,
+      REF_BOSS_BONUS, refAllWeapon, refWeapon, specialBonuses);
+    const totalWeightedDamage = rowResults.reduce((sum, result) => sum + result.weightedDamage, 0);
+
+    for (let index = 0; index < mergedRows.length; index++) {
+      const row = mergedRows[index];
+      const result = rowResults[index];
+      const {
+        skill, count,
+        generalBonus, specialBonus, critMultiplier, bashMultiplier,
+        critRateRatio, normalAttackRatio, grazeRatio, bashRateRatio,
+        weaponBaseRate, weaponBaseFix, attributeRate, attributeFix,
+        mingjinMultiplier,
+      } = row;
 
       // 计算基础伤害 (与 calcRowDPS 保持一致: 定音触发时叠加 penetDelta)
       const skillMults: SkillMultipliers = {
@@ -597,13 +713,13 @@ export class DPSGraduationCalculator {
       };
       const isDingyinSkill = result.specialMultiplier > 1;
       const effectivePenetDelta = isDingyinSkill ? penetDelta : 0;
-      const baseAvg = calcElementTotal(mergedElements, skillMults, this.mainWeapon, 'avg', effectivePenetDelta);
-      const baseMax = calcElementTotal(mergedElements, skillMults, this.mainWeapon, 'max', effectivePenetDelta);
-      const baseMin = calcElementTotal(mergedElements, skillMults, this.mainWeapon, 'min', effectivePenetDelta);
+      const baseAvg = result.isLinkedDamage ? 0 : calcElementTotal(row.elements, skillMults, this.mainWeapon, 'avg', effectivePenetDelta);
+      const baseMax = result.isLinkedDamage ? 0 : calcElementTotal(row.elements, skillMults, this.mainWeapon, 'max', effectivePenetDelta);
+      const baseMin = result.isLinkedDamage ? 0 : calcElementTotal(row.elements, skillMults, this.mainWeapon, 'min', effectivePenetDelta);
 
       skillDetails.push({
         skill, count,
-        elements: mergedElements,
+        elements: row.elements,
         weaponBaseRate, weaponBaseFix, attributeRate, attributeFix,
         generalBonus, critMultiplier, bashMultiplier, specialBonus,
         critRateRatio, normalAttackRatio, grazeRatio, bashRateRatio,

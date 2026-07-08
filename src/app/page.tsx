@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { Character, Plan, Equipment, GraduationResult, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
+import type { Character, Plan, Equipment, EquipmentSlot, FlowType, VersionType, BowType, SuitType, EquipmentAttribute, GameRole, RolePanelData } from '@/types';
 import { FLOW_TYPES, VERSIONS, FLOW_CATEGORIES, EQUIPMENT_SLOTS, BOW_TYPES, SUIT_TYPES } from '@/types';
 import { exportLocalData, importLocalData } from '@/lib/localStore';
 import { getDataSource } from '@/lib/dataSource';
@@ -23,7 +23,6 @@ import {
   QRCodeAuthModal,
   SelectRoleModal,
   DPSGraduationPanel,
-  GraduationResultCard,
 } from '@/components';
 import {
   LogIn, LogOut, Share2, RefreshCw, Trash2, Download, Upload, Bot,
@@ -65,7 +64,6 @@ export default function Home() {
     getXinfaInfo
   } = useConfigData();
 
-  const [graduationResults, setGraduationResults] = useState<GraduationResult[]>([]);
   const [equipmentFilter, setEquipmentFilter] = useState<'可用' | '全部' | '穿着'>('可用');
   const [slotFilter, setSlotFilter] = useState<EquipmentSlot | '全部'>('全部');
 
@@ -109,12 +107,6 @@ export default function Home() {
   const prevAuthRef = useRef(authCredentials);
 
   useEffect(() => {
-    if (selectedCharacter && plans.length > 0) {
-      fetchGraduation();
-    }
-  }, [selectedCharacter, plans, equipments]);
-
-  useEffect(() => {
     if (selectedCharacter) {
       fetchRolePanel(selectedCharacter);
     }
@@ -126,17 +118,6 @@ export default function Home() {
     }
     prevAuthRef.current = authCredentials;
   }, [authCredentials]);
-
-  const fetchGraduation = async () => {
-    if (!selectedCharacter) return;
-    try {
-      const response = await fetch(`/api/graduation?characterId=${selectedCharacter.id}`);
-      const data = await response.json();
-      if (data.success) setGraduationResults(data.results);
-    } catch (error) {
-      console.error('计算毕业率失败:', error);
-    }
-  };
 
   const handleDeleteCharacter = async () => {
     if (!selectedCharacter) return;
@@ -477,6 +458,9 @@ export default function Home() {
     if (slotFilter !== '全部' && e.slot !== slotFilter) return false;
     return true;
   });
+  const xinfaNameMap = configData?.xinfa_data
+    ? Object.fromEntries(Object.entries(configData.xinfa_data).map(([id, xinfa]) => [id, xinfa.name]))
+    : null;
 
   if (isLoading) {
     return (
@@ -563,6 +547,29 @@ export default function Home() {
         </Card>
 
         {selectedCharacter ? (
+          showTuningAssistant ? (
+            <div className="surface-panel p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-700/70 pb-3">
+                <div>
+                  <h2 className="text-lg font-bold text-purple-300">调号建议</h2>
+                  <p className="text-sm text-gray-400">基于当前装备、角色面板和所选方案生成。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTuningAssistant(false)}
+                  className="btn btn-secondary"
+                >
+                  返回装备列表
+                </button>
+              </div>
+              <TuningAssistantReport
+                equipments={equipments}
+                plan={selectedPlan}
+                rolePanelData={rolePanelData}
+                xinfaNameMap={xinfaNameMap}
+              />
+            </div>
+          ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <div className="surface-panel filter-panel">
@@ -708,18 +715,14 @@ export default function Home() {
                 )}
               </div>
 
-              {configData?.flow_config && configData?.flow_rotations && configData?.flow_skills && (
-                <GraduationResultCard
-                  equipments={equipments}
-                  rolePanelData={rolePanelData}
-                  flowConfig={configData.flow_config}
-                  flowRotations={configData.flow_rotations}
-                  flowSkills={configData.flow_skills}
-                  selectedPlan={selectedPlan}
-                />
-              )}
+              <DPSGraduationPanel
+                rolePanelData={rolePanelData}
+                selectedPlan={selectedPlan}
+                equipments={equipments}
+              />
             </div>
           </div>
+          )
         ) : (
           <div className="surface-panel mx-auto max-w-2xl px-6 py-10 text-center">
             <h2 className="mb-3 text-xl font-semibold text-white">选择角色开始计算</h2>
@@ -748,6 +751,7 @@ export default function Home() {
         <EditEquipmentModal
           isOpen={showEditEquipmentModal}
           onClose={() => setShowEditEquipmentModal(false)}
+          equipment={editingEquipment}
           equipmentData={editEquipmentData}
           setEquipmentData={setEditEquipmentData}
           affixMode={affixMode}
@@ -767,9 +771,15 @@ export default function Home() {
 
         <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
         <QRCodeAuthModal isOpen={showQRCodeAuth} onClose={() => setShowQRCodeAuth(false)} onSuccess={handleQRCodeAuthSuccess} />
-        <SelectRoleModal isOpen={showSelectRoleModal} onClose={() => setShowSelectRoleModal(false)} roles={availableGameRoles} onSelectCharacter={handleSelectCharacter} onBindGameRole={handleBindGameRole} />
-        <DPSGraduationPanel />
-        <Toast />
+        <SelectRoleModal
+          isOpen={showSelectRoleModal}
+          onClose={() => setShowSelectRoleModal(false)}
+          roles={availableGameRoles}
+          characters={characters}
+          onSelect={handleBindGameRole}
+          onSelectCharacter={handleSelectCharacter}
+          isLoading={isLoadingRolePanel}
+        />
       </main>
     </div>
   );

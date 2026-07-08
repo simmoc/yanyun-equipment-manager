@@ -286,7 +286,7 @@ const FLOW_CONFIGS: Record<string, FlowConfig> = {
     school: '牵丝',
     divinePriority: ['伞武学增伤', '对首领单位增伤', '全武学增效'],
     divineAvoid: ['扇武学增伤'],
-    dingyinRight: '九重春色·特殊技增伤',
+    dingyinRight: '九重春色·高频弹道增伤',
     slotAdvice: {
       '环': '首词条应选大外攻',
       '佩': '首词条应选大外攻',
@@ -848,6 +848,11 @@ function analyzeEquipments(
       const entry = tab.entries.find(e => e.name === '定音推荐');
       if (!entry) continue;
       for (const slot of slots) targets[slot] = apiNameToGame(entry.desc);
+    }
+    if (flowType === '牵丝玉') {
+      ['冠胄', '胸甲', '胫甲', '腕甲'].forEach(slot => {
+        targets[slot] = '九重春色·高频弹道增伤';
+      });
     }
     return Object.keys(targets).length > 0 ? targets : null;
   })();

@@ -7,20 +7,17 @@ import {
   DPSGraduationCalculator,
   FLOW_TO_SCHOOL_KEY,
   ELEMENT_NAMES,
+  DINGYIN_BONUS_MAX_110,
+  DINGYIN_PENETRATION_MAX_110,
   REF_BOSS_BONUS,
   REF_ALL_WEAPON_BONUS,
   REF_WEAPON_BONUS,
+  type SchoolRefData,
   SCHOOL_WEAPON_AFFIX_MAP,
+  type SpecialBonusMap,
   type UserEquipment,
 } from '@/lib/dpsCalculator';
 import { SCHOOL_REF_DATA } from '@/lib/dpsReferenceData';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { RefreshCw } from 'lucide-react';
 
 /* ================================================================
    常量 & 映射
@@ -39,9 +36,6 @@ const XINFA_TO_FLOW: Record<string, string> = {
   '551': '裂石钧', '401': '裂石威', '304': '牵丝玉', '351': '牵丝霖',
   '601': '破竹鸢', '651': '牵丝翊',
 };
-
-/** 贷款定音值 (参考 Excel B21) */
-const DEFAULT_DINGYIN_BONUS = 0.32;
 
 /* ================================================================
    Helpers
@@ -92,6 +86,36 @@ function extractDingyinBonus(equipments: Equipment[]): number {
   return total;
 }
 
+function extractDingyinBonuses(equipments: Equipment[]): SpecialBonusMap {
+  const categoryPatterns: Array<[string, string]> = [
+    ['蓄力技', '蓄力技'],
+    ['流血', '流血'],
+    ['回旋伞', '回旋伞'],
+    ['特殊技', '特殊技'],
+    ['鼠鼠', '老鼠'],
+    ['老鼠', '老鼠'],
+    ['轻击', '轻击'],
+    ['弹道', '弹道'],
+    ['武学技', '武学技'],
+    ['治疗技', '治疗技'],
+  ];
+  const bonuses: SpecialBonusMap = {};
+
+  for (const equip of equipments) {
+    if (equip.attributes.length === 0) continue;
+    const lastAttr = equip.attributes[equip.attributes.length - 1];
+    if (!lastAttr.name) continue;
+
+    const matched = categoryPatterns.find(([pattern]) => lastAttr.name.includes(pattern));
+    if (!matched) continue;
+
+    const v = typeof lastAttr.value === 'number' ? lastAttr.value : parseFloat(String(lastAttr.value)) || 0;
+    bonuses[matched[1]] = (bonuses[matched[1]] || 0) + (v > 1 ? v / 100 : v);
+  }
+
+  return bonuses;
+}
+
 function extractDingyinPenetration(equipments: Equipment[]): number {
   const penetPatterns = ['外功穿透', '外攻穿透'];
   let total = 0;
@@ -107,6 +131,20 @@ function extractDingyinPenetration(equipments: Equipment[]): number {
     }
   }
   return total;
+}
+
+function buildLoanSpecialBonuses(schoolRef: SchoolRefData): SpecialBonusMap | undefined {
+  const bonuses: SpecialBonusMap = {};
+
+  for (const [category, value] of Object.entries(schoolRef.specialBonuses ?? {})) {
+    bonuses[category] = value > 0 ? DINGYIN_BONUS_MAX_110 : value;
+  }
+
+  if (schoolRef.checkType && (schoolRef.B21 ?? 0) > 0) {
+    bonuses[schoolRef.checkType] = DINGYIN_BONUS_MAX_110;
+  }
+
+  return Object.keys(bonuses).length > 0 ? bonuses : undefined;
 }
 
 function extractAllWeaponBonus(equipments: Equipment[]): number {
@@ -262,19 +300,23 @@ export function DPSGraduationPanel({
 
     const equipList = equipments || [];
     const bossBonus = equipList.length > 0 ? extractBossBonus(equipList) : REF_BOSS_BONUS;
-    const extractedDingyin = equipList.length > 0 ? extractDingyinBonus(equipList) : 0;
-    const dingyinBonus = loanDingyin ? DEFAULT_DINGYIN_BONUS : (extractedDingyin || DEFAULT_DINGYIN_BONUS);
-    const isQiansilin = schoolKey === '牵丝霖_105';
+    const extractedSpecialBonuses = equipList.length > 0 ? extractDingyinBonuses(equipList) : {};
+    const hasCategorizedDingyin = Object.keys(extractedSpecialBonuses).length > 0;
+    const extractedDingyin = equipList.length > 0 && !hasCategorizedDingyin ? extractDingyinBonus(equipList) : 0;
+    const referenceDingyinBonus = schoolRef.B21 ?? DINGYIN_BONUS_MAX_110;
+    const dingyinBonus = loanDingyin ? DINGYIN_BONUS_MAX_110 : (extractedDingyin || referenceDingyinBonus);
+    const specialBonuses = loanDingyin ? buildLoanSpecialBonuses(schoolRef) : (hasCategorizedDingyin ? extractedSpecialBonuses : undefined);
+    const isQiansilin = schoolKey.startsWith('牵丝霖');
     const defaultAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
     const defaultWeapon = isQiansilin ? 0 : REF_WEAPON_BONUS;
     const allWeaponBonus = equipList.length > 0 ? extractAllWeaponBonus(equipList) : defaultAllWeapon;
     const weaponBonus = equipList.length > 0 ? extractWeaponBonus(equipList, schoolRef.mainWeapon) : defaultWeapon;
     const extractedDingyinPenet = equipList.length > 0 ? extractDingyinPenetration(equipList) : 0;
-    const dingyinPenetration = loanDingyin ? undefined : (extractedDingyinPenet > 0 ? extractedDingyinPenet : undefined);
+    const dingyinPenetration = loanDingyin ? DINGYIN_PENETRATION_MAX_110 : (extractedDingyinPenet > 0 ? extractedDingyinPenet : undefined);
 
     try {
       const calc = new DPSGraduationCalculator(schoolKey, schoolRef);
-      const res = calc.calculate({ equipment, bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, dingyinPenetration });
+      const res = calc.calculate({ equipment, bossBonus, dingyinBonus, specialBonuses, allWeaponBonus, weaponBonus, dingyinPenetration });
       return { res, schoolKey, isMingjin: schoolRef.isMingjin, bossBonus, dingyinBonus, allWeaponBonus, weaponBonus, dingyinPenetration, loanDingyin };
     } catch (e: any) { return { error: `计算失败: ${e.message}` }; }
   }, [rolePanelData, resolvedFlowType, equipments, loanDingyin]);
@@ -282,14 +324,10 @@ export function DPSGraduationPanel({
   /* ── No panel ── */
   if (!rolePanelData) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base text-data-dps">DPS 毕业率</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center py-3 text-muted-foreground text-sm">暂无角色面板数据</p>
-        </CardContent>
-      </Card>
+      <div className="surface-panel p-3">
+        <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
+        <p className="text-gray-400 text-sm">暂无角色面板数据</p>
+      </div>
     );
   }
 
@@ -300,21 +338,23 @@ export function DPSGraduationPanel({
       setSelectedFlowType={(v) => { setSelectedFlowType(v); setUserOverrode(false); setShowSelector(false); }}
     />;
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base text-data-dps">DPS 毕业率</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-3 text-muted-foreground text-sm space-y-2">
-            {!selectedPlan ? (
-              <><p>请选择方案，或</p>
-              <Button variant="outline" size="sm" onClick={() => setShowSelector(true)} className="text-data-dps border-data-dps/30 hover:bg-data-dps/10">
+      <div className="surface-panel p-3">
+        <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
+        <div className="text-center py-3 text-gray-400 text-sm space-y-2">
+          {!selectedPlan ? (
+            <>
+              <p>请选择方案，或</p>
+              <button
+                type="button"
+                onClick={() => setShowSelector(true)}
+                className="px-2 py-1 text-xs rounded bg-yellow-500 text-gray-900 font-bold hover:bg-yellow-400 transition"
+              >
                 手动选择流派
-              </Button></>
-            ) : <p>正在识别流派...</p>}
-          </div>
-        </CardContent>
-      </Card>
+              </button>
+            </>
+          ) : <p>正在识别流派...</p>}
+        </div>
+      </div>
     );
   }
 
@@ -322,15 +362,11 @@ export function DPSGraduationPanel({
 
   if (!result || 'error' in result) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base text-data-dps">DPS 毕业率</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {showFlowBanner && <FlowBanner flow={resolvedFlowType} onSwitch={() => { setSelectedFlowType(null); setUserOverrode(true); setShowSelector(true); }} />}
-          <p className="text-center py-3 text-muted-foreground text-sm">{result?.error || '计算失败'}</p>
-        </CardContent>
-      </Card>
+      <div className="surface-panel p-3">
+        <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
+        {showFlowBanner && <FlowBanner flow={resolvedFlowType} onSwitch={() => { setSelectedFlowType(null); setUserOverrode(true); setShowSelector(true); }} />}
+        <p className="text-center py-3 text-gray-400 text-sm">{result?.error || '计算失败'}</p>
+      </div>
     );
   }
 
@@ -338,85 +374,59 @@ export function DPSGraduationPanel({
   const rate = res.毕业率数值, color = getRateColor(rate), label = getRateLabel(rate);
 
   return (
-    <Card className="animate-fade-in-up">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base text-data-dps">DPS 毕业率</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="surface-panel p-3 animate-fade-in-up">
+      <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
+      <div className="space-y-3">
         {showFlowBanner && <FlowBanner flow={resolvedFlowType} onSwitch={() => { setSelectedFlowType(null); setUserOverrode(true); setShowSelector(true); }} />}
 
-        {/* ── 毕业率主指标 ── */}
-        <div className="bg-surface-section rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">毕业率</span>
-            <span className="text-2xl font-bold" style={{ color }}>{res.毕业率}</span>
-          </div>
-          <div className="w-full h-2.5 bg-surface-hover rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, rate * 100))}%`, backgroundColor: color }} />
-          </div>
-          <div className="flex justify-between text-xs mt-1">
-            <Badge variant="outline" style={{ color, borderColor: color }} className="text-[10px]">{label}</Badge>
-            <span className="text-muted-foreground text-xs">{res.流派.replace('_105', '')} · {res.模式}</span>
+        <div className="flex items-center justify-center gap-2 bg-gradient-to-br from-gray-700/50 to-gray-800/50 p-4 rounded-lg">
+          <div className="text-center">
+            <div className="text-5xl font-black tracking-tight" style={{ color }}>
+              {(rate * 100).toFixed(2)}
+              <span className="text-2xl ml-0.5 text-gray-400">%</span>
+            </div>
+            <div className="text-xs mt-1" style={{ color }}>{label}</div>
+            <div className="text-xs mt-1 text-gray-400">{res.流派.replace(/_(105|110)$/, '')} · {res.模式}</div>
           </div>
         </div>
 
-        {/* ── DPS 对比 ── */}
-        <div className="bg-surface-section rounded-lg p-3 grid grid-cols-2 gap-x-4 gap-y-1">
-          <KV label="当前 DPS" value={res.DPS.toLocaleString()} valueClass="text-foreground" />
-          <KV label="毕业档 DPS" value={res.毕业档DPS.toLocaleString()} valueClass="text-data-attack" />
-          <KV label="战斗时间" value={`${res.战斗时间}s`} valueClass="text-muted-foreground" />
-          <KV label="期望总伤" value={(res.总期望伤害 / 10000).toFixed(1) + '万'} valueClass="text-muted-foreground" />
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <Metric label="当前 DPS" value={res.DPS.toLocaleString()} />
+          <Metric label="毕业档 DPS" value={res.毕业档DPS.toLocaleString()} />
+          <Metric label="期望总伤" value={(res.总期望伤害 / 10000).toFixed(2) + ' 万'} />
+          <Metric label="战斗时长" value={`${res.战斗时间.toFixed(1)}s`} />
         </div>
 
-        {/* ── 增伤因子 ── */}
-        <div className="bg-surface-section rounded-lg p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">首领增伤</span>
-            <span className="text-xs text-data-boss font-mono">
-              {usedBossBonus != null ? '+' + (usedBossBonus * 100).toFixed(1) + '%' : '默认 8.8%'}
-            </span>
+        <div className="bg-gray-700/30 p-2 rounded-lg">
+          <div className="text-xs font-bold mb-1.5 text-yellow-300">增伤因子</div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <Factor label="首领增伤" value={usedBossBonus != null ? '+' + (usedBossBonus * 100).toFixed(1) + '%' : `默认 ${(REF_BOSS_BONUS * 100).toFixed(1)}%`} valueClass="text-orange-400" />
+            <Factor label="全武增" value={usedAllWeaponBonus != null ? '+' + (usedAllWeaponBonus * 100).toFixed(1) + '%' : `默认 ${(REF_ALL_WEAPON_BONUS * 100).toFixed(1)}%`} valueClass="text-purple-400" />
+            <Factor label="武器增" value={usedWeaponBonus != null ? '+' + (usedWeaponBonus * 100).toFixed(1) + '%' : `默认 ${(REF_WEAPON_BONUS * 100).toFixed(1)}%`} valueClass="text-green-400" />
+            <Factor label="定音增伤" value={loanDingyin ? `+${(DINGYIN_BONUS_MAX_110 * 100).toFixed(1)}% (贷款)` : usedDingyinBonus != null ? '+' + (usedDingyinBonus * 100).toFixed(1) + '%' : `默认 ${(DINGYIN_BONUS_MAX_110 * 100).toFixed(1)}%`} valueClass="text-yellow-400" />
+            <div className="col-span-2 flex justify-between">
+              <span className="text-gray-400">外功穿透定音</span>
+              <span className="text-cyan-400">
+                {loanDingyin
+                  ? `${DINGYIN_PENETRATION_MAX_110.toFixed(1)}% (贷款满值)`
+                  : usedDingyinPenetration != null && usedDingyinPenetration > 0
+                    ? `${usedDingyinPenetration.toFixed(1)}%`
+                    : `参考 ${schoolRef?.refPenetBase?.toFixed(1) ?? '?'}%`}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">全武增</span>
-            <span className="text-xs text-data-weapon font-mono">
-              {usedAllWeaponBonus != null ? '+' + (usedAllWeaponBonus * 100).toFixed(1) + '%' : '默认 8.4%'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">武器增</span>
-            <span className="text-xs text-data-attack font-mono">
-              {usedWeaponBonus != null ? '+' + (usedWeaponBonus * 100).toFixed(1) + '%' : '默认 8.6%'}
-            </span>
-          </div>
-          <Separator className="bg-border/50" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">定音增伤</span>
-            <span className="text-xs text-data-dingyin font-mono">
-              {loanDingyin ? '+32.0% (贷款)' : usedDingyinBonus != null ? '+' + (usedDingyinBonus * 100).toFixed(1) + '%' : '默认 32.0%'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">外功穿透定音</span>
-            <span className="text-xs text-cyan-400 font-mono">
-              {loanDingyin
-                ? `参考 ${schoolRef?.refPenetBase?.toFixed(1) ?? '?'}% (贷款)`
-                : usedDingyinPenetration != null && usedDingyinPenetration > 0
-                  ? `${usedDingyinPenetration.toFixed(1)}%`
-                  : `参考 ${schoolRef?.refPenetBase?.toFixed(1) ?? '?'}%`}
-            </span>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer pt-1">
-            <Checkbox
+          <label className="flex items-center gap-2 cursor-pointer mt-2 pt-2 border-t border-gray-700 text-xs text-gray-400">
+            <input
+              type="checkbox"
               checked={loanDingyin}
-              onCheckedChange={(checked) => setLoanDingyin(!!checked)}
-              className="border-muted-foreground data-[state=checked]:bg-data-dps data-[state=checked]:border-data-dps"
+              onChange={(event) => setLoanDingyin(event.target.checked)}
+              className="h-3.5 w-3.5 accent-yellow-500"
             />
-            <span className="text-xs text-muted-foreground">贷款定音 (强制使用 32%)</span>
+            <span>贷款定音 (按 110 满值)</span>
           </label>
         </div>
-
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -426,11 +436,15 @@ export function DPSGraduationPanel({
 
 function FlowBanner({ flow, onSwitch }: { flow: string; onSwitch: () => void }) {
   return (
-    <div className="flex items-center justify-between mb-2 px-3 py-1.5 bg-data-dps/10 rounded text-xs">
-      <span className="text-data-dps">自动识别: {flow}</span>
-      <Button variant="link" size="sm" onClick={onSwitch} className="text-data-dps hover:text-data-dps/80 h-auto p-0 text-xs">
-        <RefreshCw className="w-3 h-3 mr-1" />切换
-      </Button>
+    <div className="flex items-center justify-between bg-yellow-900/30 border border-yellow-700/50 p-2 rounded-lg text-xs text-yellow-300">
+      <span>自动识别：{flow}</span>
+      <button
+        type="button"
+        onClick={onSwitch}
+        className="text-yellow-200 hover:text-yellow-100 transition"
+      >
+        切换
+      </button>
     </div>
   );
 }
@@ -443,40 +457,52 @@ function FlowSelector({ selectedFlowType, setSelectedFlowType }: {
   const availableFlows = FLOW_TYPES.filter(ft => FLOW_TO_SCHOOL_KEY[ft]);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base text-data-dps">DPS 毕业率</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-muted-foreground text-sm">无法从心法自动识别流派，请手动选择：</p>
-        <Select value={localType} onValueChange={setLocalType}>
-          <SelectTrigger className="bg-surface-section border-border">
-            <SelectValue placeholder="请选择流派..." />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            {availableFlows.map(ft => (
-              <SelectItem key={ft} value={ft} className="focus:bg-data-dps/20 focus:text-data-dps">{ft}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
+    <div className="surface-panel p-3">
+      <h2 className="text-base font-bold mb-2 text-yellow-400">DPS 毕业率</h2>
+      <div className="space-y-3">
+        <p className="text-gray-400 text-sm">无法从心法自动识别流派，请手动选择：</p>
+        <div className="flex flex-wrap gap-1.5">
+          {availableFlows.map((flow) => (
+            <button
+              key={flow}
+              type="button"
+              onClick={() => setLocalType(flow)}
+              className={`px-2 py-1 text-xs rounded transition ${
+                localType === flow
+                  ? 'bg-yellow-500 text-gray-900 font-bold'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {flow}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
           onClick={() => setSelectedFlowType(localType || availableFlows[0])}
-          className="w-full bg-data-dps hover:bg-data-dps/80 text-white"
+          className="w-full px-2 py-1.5 text-xs rounded bg-yellow-500 text-gray-900 font-bold hover:bg-yellow-400 transition"
         >
           确认流派
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function KV({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={`text-sm font-medium ${valueClass || 'text-foreground'}`}>{value}</span>
+        </button>
+      </div>
     </div>
   );
 }
 
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-700/40 p-2 rounded">
+      <div className="text-gray-400">{label}</div>
+      <div className="text-white font-bold text-sm">{value}</div>
+    </div>
+  );
+}
 
+function Factor({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-gray-400">{label}</span>
+      <span className={valueClass || 'text-white'}>{value}</span>
+    </div>
+  );
+}
