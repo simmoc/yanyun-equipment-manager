@@ -626,6 +626,11 @@ export default function Home() {
             </div>
 
             <div className="sidebar-stack">
+              <DPSGraduationPanel
+                rolePanelData={rolePanelData}
+                selectedPlan={selectedPlan}
+                equipments={wearingEquipments}
+              />
               <div className="surface-panel sidebar-panel">
                 <h2 className="sidebar-panel-title text-base font-bold text-green-400">角色属性</h2>
                 {isLoadingRolePanel ? (
@@ -724,12 +729,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-
-              <DPSGraduationPanel
-                rolePanelData={rolePanelData}
-                selectedPlan={selectedPlan}
-                equipments={wearingEquipments}
-              />
             </div>
           </div>
         ) : (

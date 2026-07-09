@@ -172,49 +172,38 @@ const formatValueById = (id: number, value: number): string => {
   return (
     <div className={`equipment-card-shell equipment-card-surface bg-gray-800 overflow-hidden border border-gray-700 transition ${equipment.is_wearing ? 'is-current' : ''}`}>
       <div className="equipment-card-cover" aria-hidden="true" />
-      <div className="relative z-[1] p-3 border-b border-gray-700">
-        <div className="flex gap-2.5">
-          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-700 flex items-center justify-center flex-none">
+      <div className="relative z-[1] equipment-card-header border-b border-gray-700">
+        <div className="equipment-card-topline">
+          <div className="equipment-thumb">
             {equipImage ? (
               <img src={equipImage} alt={equipment.name} className="w-full h-full object-cover" />
             ) : (
               <span className="text-gray-500 text-base">⚔️</span>
             )}
+            {score > 0 && (
+              <span className={`equipment-score-badge ${getScoreColor(score)}`}>
+                {score}
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="leading-tight">
-              <TruncatedText className="text-gray-200 font-medium text-[13px] leading-tight">
-                {equipment.name}
-              </TruncatedText>
-            </h3>
-            <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-gray-500 text-[11px]">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
-              {equipment.level > 0 && (
-                <span className="px-1 py-[1px] bg-blue-500/20 text-blue-400 text-[10px] rounded">
-                  Lv.{equipment.level}
-                </span>
-              )}
-              {equipment.suit_type && (
-                <span className="px-1 py-[1px] bg-amber-500/20 text-amber-400 text-[10px] rounded leading-none">
-                  {suitInfo?.short || equipment.suit_type}
-                </span>
-              )}
+          <div className="equipment-title-area">
+            <div className="equipment-title-row">
+              <h3 className="equipment-title">
+                <TruncatedText className="text-gray-200 font-semibold text-[13px] leading-tight">
+                  {equipment.name}
+                </TruncatedText>
+              </h3>
               {equipment.is_wearing && (
-                <span className="px-1 py-[1px] bg-emerald-500/20 text-emerald-400 text-[10px] rounded">
-                  已装备
-                </span>
+                <span className="equipment-status-chip">穿着</span>
               )}
+            </div>
+            <div className="equipment-meta-line">
+              <span className="equipment-meta-chip slot">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
+              {equipment.level > 0 && <span className="equipment-meta-chip level">Lv.{equipment.level}</span>}
+              {equipment.suit_type && <span className="equipment-meta-chip suit">{suitInfo?.short || equipment.suit_type}</span>}
               {equipment.legacyTs != null && equipment.legacyTs > 0 && (
-                <span
-                  className="px-1 py-[1px] bg-purple-500/20 text-purple-400 text-[10px] rounded"
-                  title={`传承于 ${new Date(equipment.legacyTs * 1000).toLocaleDateString('zh-CN')}`}
-                >
+                <span className="equipment-meta-chip legacy" title={`传承于 ${new Date(equipment.legacyTs * 1000).toLocaleDateString('zh-CN')}`}>
                   承音
-                </span>
-              )}
-              {score > 0 && (
-                <span className={`text-[10px] font-bold ${getScoreColor(score)}`}>
-                  {score}分
                 </span>
               )}
             </div>
