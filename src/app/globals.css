@@ -743,7 +743,34 @@ body {
   }
 
   .btn {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+  }
+
+  .filter-panel {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+
+  .filter-group {
+    gap: 5px;
+  }
+
+  .filter-label {
+    width: auto;
+    font-size: 10px;
+    margin-right: 2px;
+  }
+
+  .filter-separator {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .filter-group .btn {
+    min-height: 26px;
+    padding: 4px 7px;
+    font-size: 11px;
+    border-radius: 5px;
   }
 
   .auth-panel {
