@@ -94,13 +94,24 @@ function extractBossBonus(equipments: Equipment[]): number {
   return total;
 }
 
+const ARMOR_SLOTS: Equipment['slot'][] = ['冠胄', '胸甲', '胫甲', '腕甲'];
+const PENETRATION_DINGYIN_SLOTS: Equipment['slot'][] = ['主武器', '副武器', '环', '佩'];
+
+function getArmorEquipments(equipments: Equipment[]): Equipment[] {
+  return equipments.filter(equip => ARMOR_SLOTS.includes(equip.slot));
+}
+
+function getPenetrationDingyinEquipments(equipments: Equipment[]): Equipment[] {
+  return equipments.filter(equip => PENETRATION_DINGYIN_SLOTS.includes(equip.slot));
+}
+
 function extractDingyinBonus(equipments: Equipment[]): number {
   const dingyinPatterns = [
     '蓄力技增伤', '流血增伤', '回旋伞增伤', '武学技增伤',
     '特殊技增伤', '鼠鼠增伤', '治疗技增疗',
   ];
   let total = 0;
-  for (const equip of equipments) {
+  for (const equip of getArmorEquipments(equipments)) {
     if (equip.attributes.length === 0) continue;
     const lastAttr = equip.attributes[equip.attributes.length - 1];
     if (lastAttr.name) {
@@ -129,7 +140,7 @@ function extractDingyinBonuses(equipments: Equipment[]): SpecialBonusMap {
   ];
   const bonuses: SpecialBonusMap = {};
 
-  for (const equip of equipments) {
+  for (const equip of getArmorEquipments(equipments)) {
     if (equip.attributes.length === 0) continue;
     const lastAttr = equip.attributes[equip.attributes.length - 1];
     if (!lastAttr.name) continue;
@@ -144,10 +155,14 @@ function extractDingyinBonuses(equipments: Equipment[]): SpecialBonusMap {
   return bonuses;
 }
 
+function sumBonuses(bonuses: SpecialBonusMap): number {
+  return Object.values(bonuses).reduce((sum, value) => sum + value, 0);
+}
+
 function extractDingyinPenetration(equipments: Equipment[]): number {
   const penetPatterns = ['外功穿透', '外攻穿透'];
   let total = 0;
-  for (const equip of equipments) {
+  for (const equip of getPenetrationDingyinEquipments(equipments)) {
     if (equip.attributes.length === 0) continue;
     const lastAttr = equip.attributes[equip.attributes.length - 1];
     if (lastAttr.name) {
@@ -332,8 +347,9 @@ export function DPSGraduationPanel({
     const extractedSpecialBonuses = equipList.length > 0 ? extractDingyinBonuses(equipList) : {};
     const hasCategorizedDingyin = Object.keys(extractedSpecialBonuses).length > 0;
     const extractedDingyin = equipList.length > 0 && !hasCategorizedDingyin ? extractDingyinBonus(equipList) : 0;
+    const extractedDingyinTotal = hasCategorizedDingyin ? sumBonuses(extractedSpecialBonuses) : extractedDingyin;
     const referenceDingyinBonus = schoolRef.B21 ?? DINGYIN_BONUS_MAX_110;
-    const dingyinBonus = loanDingyin ? DINGYIN_BONUS_MAX_110 : (extractedDingyin || referenceDingyinBonus);
+    const dingyinBonus = loanDingyin ? DINGYIN_BONUS_MAX_110 : (equipList.length > 0 ? extractedDingyinTotal : referenceDingyinBonus);
     const specialBonuses = loanDingyin ? buildLoanSpecialBonuses(schoolRef) : (hasCategorizedDingyin ? extractedSpecialBonuses : undefined);
     const isQiansilin = schoolKey.startsWith('牵丝霖');
     const defaultAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
