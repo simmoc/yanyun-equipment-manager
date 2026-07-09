@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import type { Equipment, Plan, RolePanelData } from '@/types';
 import { FLOW_TYPES } from '@/types';
 import { getScoreColor } from '@/lib/scoreConfig';
+import { TruncatedText } from '@/components/TruncatedText';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -564,9 +565,9 @@ export function TuningAssistantReport({ equipments, plan, rolePanelData, default
       );
     }
     return (
-      <div className="text-center py-8 text-gray-400">
+      <div className="loading-state vertical py-8">
+        <span className="loading-orb" aria-hidden="true" />
         <p>正在识别流派...</p>
-        <div className="mt-2 animate-spin inline-block w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -1518,7 +1519,9 @@ function TuningReportView({ data, onSwitchFlow }: { data: TuningReportData; onSw
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {data.divineAffixes.map((affix, index) => (
             <div key={index} className={`p-3 rounded-lg ${getStatusBg(affix.status)}`}>
-              <div className="text-gray-400 text-xs truncate" title={affix.name}>{affix.name}</div>
+              <TruncatedText className="text-gray-400 text-xs">
+                {affix.name}
+              </TruncatedText>
               <div className={`font-bold ${getStatusColor(affix.status)}`}>
                 {affix.count > 0 ? `${affix.count}条` : '缺失'}
               </div>
@@ -1534,8 +1537,10 @@ function TuningReportView({ data, onSwitchFlow }: { data: TuningReportData; onSw
         <div className="space-y-1.5">
           {data.affixSummary.map((affix, index) => (
             <div key={index} className="flex items-center justify-between p-2 bg-gray-700/50 rounded-lg">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-gray-300 text-sm truncate">{affix.name}</span>
+              <div className="flex flex-1 items-center gap-2 min-w-0">
+                <TruncatedText className="text-gray-300 text-sm">
+                  {affix.name}
+                </TruncatedText>
                 <span className="text-gray-500 text-xs shrink-0">x{affix.count}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Equipment, EquipmentSlot, SharedCharacterData } from '@/types';
+import { TruncatedText } from '@/components/TruncatedText';
 
 type ConfigData = {
   equip_data: Record<string, { id: number; name: string; shortImage?: string }>;
@@ -98,8 +99,11 @@ export default function SharePage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-400"></div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="loading-state vertical">
+          <span className="loading-orb lg" aria-hidden="true" />
+          <span>正在加载分享...</span>
+        </div>
       </div>
     );
   }
@@ -183,7 +187,9 @@ export default function SharePage({ params }: { params: { id: string } }) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-gray-200 font-medium text-[12px] truncate leading-tight">{equipment.name}</div>
+                          <TruncatedText className="text-gray-200 font-medium text-[12px] leading-tight">
+                            {equipment.name}
+                          </TruncatedText>
                           <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             <span className="text-gray-500 text-[10px]">{SLOT_NAME_MAP[equipment.slot] || equipment.slot}</span>
                             {equipment.level > 0 && (
@@ -221,7 +227,11 @@ export default function SharePage({ params }: { params: { id: string } }) {
                             const isMax = attr.is_main;
                             return (
                               <div key={i} className="flex items-center justify-between px-1 py-0.5 bg-gray-700/30 rounded">
-                                <span className="text-gray-300 text-[10px] truncate">{attr.name}</span>
+                                <div className="min-w-0 flex-1">
+                                  <TruncatedText className="text-gray-300 text-[10px]">
+                                    {attr.name}
+                                  </TruncatedText>
+                                </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <span className="text-green-400 text-[10px] font-medium">{formatValue(attr.value, attr.name)}</span>
                                   {rate > 0 && (

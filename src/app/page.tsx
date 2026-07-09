@@ -490,8 +490,8 @@ export default function Home() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4 mx-auto" />
+        <div className="loading-state vertical">
+          <span className="loading-orb lg" aria-hidden="true" />
           <p className="text-muted-foreground">正在初始化...</p>
         </div>
       </div>
@@ -529,8 +529,8 @@ export default function Home() {
                   <Check className="w-3 h-3" />已登录
                 </Badge>
                 {isCreatingCharacter && (
-                  <div className="flex items-center gap-2 text-blue-400">
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400" />
+                  <div className="loading-state">
+                    <span className="loading-orb sm" aria-hidden="true" />
                     创建角色中...
                   </div>
                 )}
@@ -624,9 +624,9 @@ export default function Home() {
               <div className="surface-panel sidebar-panel">
                 <h2 className="sidebar-panel-title text-base font-bold text-green-400">角色属性</h2>
                 {isLoadingRolePanel ? (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-green-400 mr-2" />
-                    <span className="text-gray-400 text-sm">加载中...</span>
+                  <div className="loading-state py-4">
+                    <span className="loading-orb" aria-hidden="true" />
+                    <span>加载中...</span>
                   </div>
                 ) : rolePanelData ? (
                   <div className="space-y-3">

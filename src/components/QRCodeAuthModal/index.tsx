@@ -249,9 +249,9 @@ export function QRCodeAuthModal({ isOpen, onClose, onSuccess }: QRCodeAuthModalP
         )}
 
         {step === 'loading' && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-400 mb-4"></div>
-            <div className="text-gray-400">加载中...</div>
+          <div className="loading-state vertical py-8">
+            <span className="loading-orb lg" aria-hidden="true" />
+            <div>加载中...</div>
           </div>
         )}
       </div>

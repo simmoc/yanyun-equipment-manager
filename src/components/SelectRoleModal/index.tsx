@@ -114,8 +114,8 @@ export function SelectRoleModal({ isOpen, onClose, roles, characters, onSelect, 
         )}
 
         {isLoading && (
-          <div className="flex items-center justify-center gap-2 mt-4 text-blue-400">
-            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400"></div>
+          <div className="loading-state mt-4">
+            <span className="loading-orb sm" aria-hidden="true" />
             角色绑定中...
           </div>
         )}

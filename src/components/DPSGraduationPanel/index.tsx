@@ -381,7 +381,12 @@ export function DPSGraduationPanel({
                 手动选择流派
               </button>
             </>
-          ) : <p>正在识别流派...</p>}
+          ) : (
+            <div className="loading-state vertical">
+              <span className="loading-orb" aria-hidden="true" />
+              <p>正在识别流派...</p>
+            </div>
+          )}
         </div>
       </div>
     );
