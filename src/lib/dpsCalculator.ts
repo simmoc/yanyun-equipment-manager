@@ -1,7 +1,7 @@
 /**
  * 燕云十六声 各流派 DPS / 毕业率计算器 v4.0
  *
- * 公式验证: 110阶9流派 1115行数据 0.00%误差 (verified against base_excel)
+ * 公式验证: 110阶10流派 1121行数据 0.00%误差 (verified against base_excel)
  *
  * 核心公式:
  * 1. 5元素拆分: sum_elem (即时攻击值 × 技能倍率 + 固伤) × (1+穿透加成) × (1+伤害加成)
@@ -259,6 +259,7 @@ export const SCHOOL_CHECK_TYPES: Record<string, string | null> = {
   '裂石钧_110': '蓄力技',
   '鸣金影_110': '流血',
   '鸣金虹_110': '蓄力技',
+  '牵丝霖_110': '蓄力技',
 };
 
 /** 110 阶右侧定音满值 (Excel B21/B22) */
@@ -634,7 +635,7 @@ export const FLOW_TO_SCHOOL_KEY: Record<FlowType, string | null> = {
   '裂石钧': '裂石钧_110',
   '牵丝玉': '牵丝玉_110',
   '牵丝翊': '牵丝翊_110',
-  '牵丝霖': null,   // base_excel 暂无 110 阶参考表
+  '牵丝霖': '牵丝霖_110',
 };
 
 // ─────────────────────────────────────────────
@@ -672,7 +673,7 @@ export class DPSGraduationCalculator {
     this.mainWeapon = schoolRef.mainWeapon;
     this.battleTime = schoolRef.battleTime;
 
-    // 牵丝霖暂无 110 阶参考表；保留 0 增益分支以兼容外部传入的旧 key.
+    // 牵丝霖参考表 B15/B17 为 0；其余流派使用通用参考全武增/武器增。
     const isQiansilin = schoolKey.startsWith('牵丝霖');
     const refAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
     const refWeapon = isQiansilin ? 0 : REF_WEAPON_BONUS;
@@ -713,7 +714,7 @@ export class DPSGraduationCalculator {
    */
   calculate(userStats: UserCombatStats): DPSResult {
     const { mode = '普通', equipment = {} } = userStats;
-    // 牵丝霖暂无 110 阶参考表；保留 0 增益分支以兼容外部传入的旧 key.
+    // 牵丝霖参考表 B15/B17 为 0；其余流派使用通用参考全武增/武器增。
     const isQiansilin = this.schoolKey.startsWith('牵丝霖');
     const refAllWeapon = isQiansilin ? 0 : REF_ALL_WEAPON_BONUS;
     const refWeapon = isQiansilin ? 0 : REF_WEAPON_BONUS;
