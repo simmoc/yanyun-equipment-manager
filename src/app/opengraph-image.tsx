@@ -86,7 +86,7 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 30, color: '#5eead4', letterSpacing: 2, marginBottom: 12 }}>
             WHERE WINDS MEET · YANYUN
           </div>
-          <div style={{ fontSize: 64, fontWeight: 800, lineHeight: 1.1, marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 64, fontWeight: 800, lineHeight: 1.1, marginBottom: 20 }}>
             Gear Graduation
             <br />
             Calculator
