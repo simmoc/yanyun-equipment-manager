@@ -33,6 +33,13 @@ export function AboutModal({
               <p className="text-gray-200 font-medium">数据保存说明</p>
               <p className="text-sm mt-1">装备数据默认保存在浏览器本地（localStorage），不会上传到服务器。若配置了数据库（PostgreSQL），角色、装备方案等数据会保存到数据库，但网易登录凭证数据不会保存到数据库。可随时通过导出功能备份数据。</p>
             </div>
+            <div>
+              <p className="text-gray-200 font-medium">友情链接</p>
+              <p className="text-sm mt-1">本站与燕云十六声相关社区、攻略站及工具站点互换友链，共同服务玩家。</p>
+              <a href="/links" className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 mt-1.5">
+                查看全部友链 →
+              </a>
+            </div>
           </div>
         </div>
         <button onClick={onClose} className="w-full mt-4 px-4 py-2 bg-gray-700 rounded-lg">
