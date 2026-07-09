@@ -511,7 +511,7 @@ export default function Home() {
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-300/80">Where Winds Meet</div>
             <h1 className="text-2xl md:text-3xl font-bold text-emerald-300">燕云十六声装备毕业率管理器</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="app-header-actions flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={toggleTheme} title={isLightTheme ? '切换至夜间模式' : '切换至白天模式'}>
               {isLightTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </Button>
@@ -546,8 +546,8 @@ export default function Home() {
                 )}
                 {selectedCharacter && (
                   <>
-                    <Separator orientation="vertical" className="h-10" />
-                    <div className="flex items-center gap-3">
+                    <Separator orientation="vertical" className="h-10 hidden sm:block" />
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                       {selectedCharacter.icon && <img src={selectedCharacter.icon} alt={selectedCharacter.name} className="w-12 h-12 rounded-full border-2 border-primary" />}
                       <div>
                         <div className="font-medium">{selectedCharacter.name}</div>

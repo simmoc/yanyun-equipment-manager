@@ -706,6 +706,11 @@ body {
     align-items: flex-start;
   }
 
+  .app-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .app-header .btn {
     flex: 0 0 auto;
   }
