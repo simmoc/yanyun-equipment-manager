@@ -507,76 +507,83 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <main className="app-shell">
         <header className="app-header">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-300/80">Where Winds Meet</div>
-            <h1 className="text-2xl md:text-3xl font-bold text-emerald-300">燕云十六声装备毕业率管理器</h1>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-300/80 hidden sm:block">Where Winds Meet</div>
+            <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-emerald-300 truncate leading-tight">燕云十六声装备毕业率管理器</h1>
           </div>
-          <div className="app-header-actions flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={toggleTheme} title={isLightTheme ? '切换至夜间模式' : '切换至白天模式'}>
+          <div className="app-header-actions flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={toggleTheme} title={isLightTheme ? '切换至夜间模式' : '切换至白天模式'}>
               {isLightTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </Button>
-            <a href="https://github.com/simmoc/yanyun-equipment-manager" target="_blank" rel="noopener noreferrer" title="GitHub 仓库">
-              <Button variant="outline" size="icon">
+            <a href="https://github.com/simmoc/yanyun-equipment-manager" target="_blank" rel="noopener noreferrer" title="GitHub 仓库" className="hidden sm:inline-flex">
+              <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
               </Button>
             </a>
-            <Button variant="outline" onClick={() => setShowAboutModal(true)}>关于本网站</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAboutModal(true)} className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm">
+              <span className="hidden sm:inline">关于本网站</span>
+              <span className="sm:hidden">关于</span>
+            </Button>
           </div>
         </header>
 
         <Card className="auth-panel">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             {!authCredentials ? (
-              <div className="flex items-center gap-4 w-full">
-                <span className="text-muted-foreground">请先扫码登录</span>
-                <Button onClick={() => setShowQRCodeAuth(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <LogIn className="w-4 h-4 mr-2" />扫码登录
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground text-sm">请先扫码登录</span>
+                <Button onClick={() => setShowQRCodeAuth(true)} className="bg-blue-600 hover:bg-blue-700 text-white h-8 sm:h-9 text-xs sm:text-sm">
+                  <LogIn className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">扫码登录</span><span className="sm:hidden">登录</span>
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-4 w-full flex-wrap">
-                <Badge variant="outline" className="border-primary/30 text-primary gap-1">
-                  <Check className="w-3 h-3" />已登录
-                </Badge>
-                {isCreatingCharacter && (
-                  <div className="loading-state">
-                    <span className="loading-orb sm" aria-hidden="true" />
-                    创建角色中...
-                  </div>
-                )}
-                {selectedCharacter && (
-                  <>
-                    <Separator orientation="vertical" className="h-10 hidden sm:block" />
-                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-                      {selectedCharacter.icon && <img src={selectedCharacter.icon} alt={selectedCharacter.name} className="w-12 h-12 rounded-full border-2 border-primary" />}
-                      <div>
-                        <div className="font-medium">{selectedCharacter.name}</div>
-                        {selectedCharacter.level && <div className="text-sm text-muted-foreground">等级 {selectedCharacter.level}</div>}
-                        {selectedCharacter.server_name && <div className="text-sm text-muted-foreground">{selectedCharacter.server_name}</div>}
+              <div className="auth-logged-in">
+                <div className="auth-char-row">
+                  <Badge variant="outline" className="border-primary/30 text-primary gap-1 shrink-0">
+                    <Check className="w-3 h-3" />已登录
+                  </Badge>
+                  {isCreatingCharacter && (
+                    <div className="loading-state">
+                      <span className="loading-orb sm" aria-hidden="true" />
+                      创建角色中...
+                    </div>
+                  )}
+                  {selectedCharacter && (
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {selectedCharacter.icon && <img src={selectedCharacter.icon} alt={selectedCharacter.name} className="w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 border-primary shrink-0" />}
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm sm:text-base truncate">{selectedCharacter.name}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {selectedCharacter.level && `Lv.${selectedCharacter.level}`}
+                          {selectedCharacter.level && selectedCharacter.server_name && ' · '}
+                          {selectedCharacter.server_name}
+                        </div>
                       </div>
-                      <Button variant="ghost" onClick={() => setShowSelectRoleModal(true)} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10">
-                        <ArrowUpDown className="w-4 h-4 mr-1.5" />切换角色
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleShareCharacter} className="border-primary/30 text-primary hover:bg-primary/10">
-                        <Share2 className="w-4 h-4 mr-1.5" />分享角色
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || !authCredentials} className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
-                        <RefreshCw className={`w-4 h-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        {isRefreshing ? '刷新中...' : '刷新数据'}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => { clearAuthCredentials(); setSelectedCharacter(null); setSelectedPlan(null); setEquipments([]); setRolePanelData(null); localStorage.removeItem('qrcode_auth_cache'); setShowQRCodeAuth(true); }} className="border-red-500/30 text-red-400 hover:bg-red-500/10">
-                        <LogOut className="w-4 h-4 mr-1.5" />退出账号
-                      </Button>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto max-sm:w-full max-sm:mt-2">
-                      <Button variant="outline" size="sm" onClick={() => setShowExportModal(true)} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
-                        <Download className="w-4 h-4 mr-1.5" />导出/导入
-                      </Button>
-                      <Button size="sm" onClick={() => setShowTuningAssistant(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
-                        <Bot className="w-4 h-4 mr-1.5" />调号
-                      </Button>
-                    </div>
-                  </>
+                  )}
+                </div>
+                {selectedCharacter && (
+                  <div className="auth-actions-row">
+                    <Button variant="ghost" size="sm" onClick={() => setShowSelectRoleModal(true)} className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 h-7 sm:h-8 px-2 sm:px-3 text-xs">
+                      <ArrowUpDown className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">切换角色</span>
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleShareCharacter} className="border-primary/30 text-primary hover:bg-primary/10 h-7 sm:h-8 px-2 sm:px-3 text-xs">
+                      <Share2 className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">分享角色</span>
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || !authCredentials} className="border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 h-7 sm:h-8 px-2 sm:px-3 text-xs">
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">{isRefreshing ? '刷新中...' : '刷新数据'}</span>
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowExportModal(true)} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 h-7 sm:h-8 px-2 sm:px-3 text-xs">
+                      <Download className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">导出/导入</span>
+                    </Button>
+                    <Button size="sm" onClick={() => setShowTuningAssistant(true)} className="bg-purple-600 hover:bg-purple-700 text-white h-7 sm:h-8 px-2 sm:px-3 text-xs">
+                      <Bot className="w-3.5 h-3.5 sm:mr-1.5" />调号
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { clearAuthCredentials(); setSelectedCharacter(null); setSelectedPlan(null); setEquipments([]); setRolePanelData(null); localStorage.removeItem('qrcode_auth_cache'); setShowQRCodeAuth(true); }} className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 sm:h-8 px-2 sm:px-3 text-xs ml-auto">
+                      <LogOut className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">退出账号</span>
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
