@@ -82,6 +82,7 @@ export interface Equipment {
   attributes: EquipmentAttribute[];
   is_wearing: boolean;
   suit_type?: SuitType;
+  rawEquipmentId?: string;
   retone?: RetoneInfo;
   legacyTs?: number;
   created_at: Date;

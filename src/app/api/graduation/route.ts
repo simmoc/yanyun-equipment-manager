@@ -4,6 +4,8 @@ import { calculateGraduationRate, calculateAllGraduationRates } from '@/lib/grad
 
 // 毕业率计算 API
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();

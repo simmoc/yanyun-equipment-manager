@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getCharactersByUuid, getPlansByCharacterId, getEquipmentsByCharacterId, createCharacter, createPlan, createEquipment } from '@/lib/db';
 import type { ExportData } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();

@@ -3,6 +3,8 @@ import { ensureDb, getPlansByCharacterId, createPlan, updatePlan, deletePlan } f
 
 // 方案管理 API
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();

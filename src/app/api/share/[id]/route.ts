@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, getShare } from '@/lib/db';
 import { isDbConfigured } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }

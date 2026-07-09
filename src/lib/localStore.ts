@@ -69,6 +69,7 @@ export interface LocalEquipment {
   attributes: object[];
   is_wearing: boolean;
   suit_type?: string;
+  rawEquipmentId?: string;
   retone?: Equipment['retone'];
   legacyTs?: number;
   created_at: string;
@@ -283,6 +284,7 @@ export async function getEquipmentsByCharacterIdLocal(characterId: string): Prom
     attributes: e.attributes as Equipment['attributes'],
     is_wearing: e.is_wearing,
     suit_type: e.suit_type as SuitType | undefined,
+    rawEquipmentId: e.rawEquipmentId,
     retone: e.retone,
     legacyTs: e.legacyTs,
     created_at: new Date(e.created_at),
@@ -298,6 +300,7 @@ export async function createEquipmentLocal(
   attributes: object[],
   isWearing: boolean,
   suitType?: string,
+  rawEquipmentId?: string,
   retone?: Equipment['retone'],
   legacyTs?: number
 ): Promise<Equipment> {
@@ -312,6 +315,7 @@ export async function createEquipmentLocal(
     attributes,
     is_wearing: isWearing,
     suit_type: suitType,
+    rawEquipmentId,
     retone,
     legacyTs,
     created_at: now,
@@ -328,6 +332,7 @@ export async function createEquipmentLocal(
     attributes: newEquipment.attributes as Equipment['attributes'],
     is_wearing: newEquipment.is_wearing,
     suit_type: newEquipment.suit_type as SuitType | undefined,
+    rawEquipmentId: newEquipment.rawEquipmentId,
     retone: newEquipment.retone,
     legacyTs: newEquipment.legacyTs,
     created_at: new Date(newEquipment.created_at),
@@ -344,6 +349,7 @@ export async function updateEquipmentLocal(
     attributes?: object[];
     is_wearing?: boolean;
     suit_type?: string;
+    rawEquipmentId?: string;
     retone?: Equipment['retone'];
     legacyTs?: number;
   }
@@ -367,6 +373,7 @@ export async function updateEquipmentLocal(
     attributes: updatedEquipment.attributes as Equipment['attributes'],
     is_wearing: updatedEquipment.is_wearing,
     suit_type: updatedEquipment.suit_type as SuitType | undefined,
+    rawEquipmentId: updatedEquipment.rawEquipmentId,
     retone: updatedEquipment.retone,
     legacyTs: updatedEquipment.legacyTs,
     created_at: new Date(updatedEquipment.created_at),

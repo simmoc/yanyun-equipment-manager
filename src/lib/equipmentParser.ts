@@ -76,6 +76,19 @@ function extractRetoneInfo(ex: any): RetoneInfo | undefined {
   };
 }
 
+function extractRawEquipmentId(equip: any): string | undefined {
+  const rawId =
+    equip.id ?? equip.Id ?? equip.ID ??
+    equip.uid ?? equip.UID ??
+    equip.uuid ?? equip.UUID ??
+    equip.guid ?? equip.GUID ??
+    equip.equip_id ?? equip.equipId ??
+    equip.equipment_id ?? equip.equipmentId ??
+    equip.inst_id ?? equip.instance_id ?? equip.instanceId;
+
+  return rawId == null || rawId === '' ? undefined : String(rawId);
+}
+
 export function parseRawEquipments(roleInfo: any, configData?: any): any[] {
   const rawWearEquips = roleInfo['combat_plan.wear_equips'];
   let wearEquips: Record<string, any> = {};
@@ -123,6 +136,7 @@ export function parseRawEquipments(roleInfo: any, configData?: any): any[] {
 
     const equipmentInfo: any = {
       slot,
+      rawEquipmentId: extractRawEquipmentId(equip),
       no: equip.No || 0,
       name: equipName,
       level: equipLevel,
@@ -200,6 +214,7 @@ export function convertToEquipmentList(rawEquips: any[]): Equipment[] {
       attributes,
       is_wearing: true,
       suit_type: suitType,
+      rawEquipmentId: equip.rawEquipmentId,
       retone: equip.retone as RetoneInfo | undefined,
       legacyTs: equip.legacyTs as number | undefined,
       created_at: new Date(now),

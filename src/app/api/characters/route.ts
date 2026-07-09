@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDb, createCharacter, deleteCharacter, getCharacterByRoleId, getCharactersByUuid } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();

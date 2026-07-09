@@ -3,6 +3,8 @@ import { ensureDb, getEquipmentsByCharacterId, createEquipment, updateEquipment,
 
 // 装备管理 API
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     await ensureDb();
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
         attributes: e.attributes,
         is_wearing: e.is_wearing,
         suit_type: e.suit_type,
+        rawEquipmentId: e.raw_equipment_id,
         retone: e.retone,
         legacyTs: e.legacy_ts,
         created_at: e.created_at,
@@ -56,6 +59,7 @@ export async function POST(request: NextRequest) {
       attributes,
       is_wearing: isWearing,
       suit_type: suitType,
+      rawEquipmentId,
       retone,
       legacyTs
     } = body;
@@ -75,6 +79,7 @@ export async function POST(request: NextRequest) {
       attributes || [],
       isWearing ?? false,
       suitType,
+      rawEquipmentId,
       retone,
       legacyTs
     );
@@ -90,6 +95,7 @@ export async function POST(request: NextRequest) {
         attributes: equipment.attributes,
         is_wearing: equipment.is_wearing,
         suit_type: equipment.suit_type,
+        rawEquipmentId: equipment.raw_equipment_id,
         retone: equipment.retone,
         legacyTs: equipment.legacy_ts,
         created_at: equipment.created_at,
@@ -121,9 +127,13 @@ export async function PUT(request: NextRequest) {
     const normalizedUpdates = updates
       ? {
         ...updates,
+        raw_equipment_id: updates.rawEquipmentId ?? updates.raw_equipment_id,
         legacy_ts: updates.legacyTs ?? updates.legacy_ts
       }
       : updates;
+    if (normalizedUpdates && 'rawEquipmentId' in normalizedUpdates) {
+      delete normalizedUpdates.rawEquipmentId;
+    }
     if (normalizedUpdates && 'legacyTs' in normalizedUpdates) {
       delete normalizedUpdates.legacyTs;
     }
@@ -147,6 +157,7 @@ export async function PUT(request: NextRequest) {
         attributes: equipment.attributes,
         is_wearing: equipment.is_wearing,
         suit_type: equipment.suit_type,
+        rawEquipmentId: equipment.raw_equipment_id,
         retone: equipment.retone,
         legacyTs: equipment.legacy_ts,
         created_at: equipment.created_at,

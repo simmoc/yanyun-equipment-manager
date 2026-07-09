@@ -124,6 +124,7 @@ export default function SharePage({ params }: { params: { id: string } }) {
   }
 
   const { character, equipments, rolePanelData } = snapshot;
+  const wearingEquipments = equipments.filter(equipment => equipment.is_wearing);
 
   return (
     <div className="min-h-screen bg-gray-900 p-3 md:p-6">
@@ -160,9 +161,9 @@ export default function SharePage({ params }: { params: { id: string } }) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Equipment Grid */}
           <div className="lg:col-span-3">
-            <h2 className="text-base font-bold mb-3 text-green-400">装备 ({equipments.length})</h2>
+            <h2 className="text-base font-bold mb-3 text-green-400">装备 ({wearingEquipments.length})</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {equipments.map(equipment => {
+              {wearingEquipments.map(equipment => {
                 const equipImage = getEquipImageUrlFromConfig(configData, equipment.name);
                 const suitInfo = configData?.suffix_data
                   ? Object.values(configData.suffix_data).find((s) => s.name === equipment.suit_type)

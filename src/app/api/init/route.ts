@@ -4,6 +4,8 @@ import { initDatabase } from '@/lib/db';
 // 数据库初始化 API
 // 首次部署时调用此接口初始化数据库表
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const result = await initDatabase();

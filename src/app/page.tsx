@@ -306,7 +306,7 @@ export default function Home() {
           level: selectedCharacter.level,
           server_name: selectedCharacter.server_name,
         },
-        equipments,
+        equipments: equipments.filter(equipment => equipment.is_wearing),
         rolePanelData,
         createdAt: new Date().toISOString()
       };

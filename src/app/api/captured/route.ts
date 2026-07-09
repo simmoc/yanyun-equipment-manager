@@ -4,6 +4,8 @@ import path from 'path';
 
 const CAPTURED_DATA_DIR = path.join(process.cwd(), 'tools', 'captured_data');
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const filePath = path.join(CAPTURED_DATA_DIR, 'latest_character.json');

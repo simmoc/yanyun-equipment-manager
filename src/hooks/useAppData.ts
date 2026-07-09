@@ -41,11 +41,8 @@ export function useAppData() {
     return (equipment.attributes || [])
       .map(attr => ({
         name: attr.name,
-        value: attr.value,
-        is_main: !!attr.is_main,
-        rate: attr.rate ?? null,
-        quality: attr.quality ?? null,
-        affixId: attr.affixId ?? null
+        value: Number.isFinite(attr.value) ? Math.round(attr.value * 1000) / 1000 : attr.value,
+        is_main: !!attr.is_main
       }))
       .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   };
@@ -60,10 +57,16 @@ export function useAppData() {
     });
   };
 
+  const getRawEquipmentKey = (equipment: Equipment) => equipment.rawEquipmentId?.trim() || '';
+
   const mergeImportedWithHistory = (importedEquipments: Equipment[], savedEquipments: Equipment[]) => {
+    const importedRawKeys = new Set(importedEquipments.map(getRawEquipmentKey).filter(Boolean));
     const importedSignatures = new Set(importedEquipments.map(getEquipmentSignature));
     const history = savedEquipments
-      .filter(equipment => !importedSignatures.has(getEquipmentSignature(equipment)))
+      .filter(equipment => {
+        const rawKey = getRawEquipmentKey(equipment);
+        return rawKey ? !importedRawKeys.has(rawKey) : !importedSignatures.has(getEquipmentSignature(equipment));
+      })
       .map(equipment => ({ ...equipment, is_wearing: false }));
 
     return [
@@ -82,6 +85,16 @@ export function useAppData() {
     if (!data.success) throw new Error(data.error || 'Failed to update equipment in database');
   };
 
+  const deleteEquipmentInDb = async (equipmentId: string) => {
+    const response = await fetch('/api/equipments', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ equipmentId })
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'Failed to delete equipment in database');
+  };
+
   const createEquipmentInDb = async (characterId: string, equipment: Equipment) => {
     const response = await fetch('/api/equipments', {
       method: 'POST',
@@ -94,6 +107,7 @@ export function useAppData() {
         attributes: equipment.attributes,
         is_wearing: equipment.is_wearing,
         suit_type: equipment.suit_type,
+        rawEquipmentId: equipment.rawEquipmentId,
         retone: equipment.retone,
         legacyTs: equipment.legacyTs
       })
@@ -112,13 +126,21 @@ export function useAppData() {
 
       const dbEquipments = data.equipments.map((equipment: any) => ({
         ...equipment,
+        rawEquipmentId: equipment.rawEquipmentId ?? equipment.raw_equipment_id,
         legacyTs: equipment.legacyTs ?? equipment.legacy_ts,
         created_at: new Date(equipment.created_at),
         updated_at: new Date(equipment.updated_at)
       })) as Equipment[];
 
+      const dbByRawKey = new Map<string, Equipment[]>();
       const dbBySignature = new Map<string, Equipment[]>();
       for (const equipment of dbEquipments) {
+        const rawKey = getRawEquipmentKey(equipment);
+        if (rawKey) {
+          const rawQueue = dbByRawKey.get(rawKey) || [];
+          rawQueue.push(equipment);
+          dbByRawKey.set(rawKey, rawQueue);
+        }
         const signature = getEquipmentSignature(equipment);
         const queue = dbBySignature.get(signature) || [];
         queue.push(equipment);
@@ -126,9 +148,15 @@ export function useAppData() {
       }
 
       const usedDbIds = new Set<string>();
+      const duplicateDbIds = new Set<string>();
+
       for (const equipment of localEquipments) {
+        const rawKey = getRawEquipmentKey(equipment);
         const signature = getEquipmentSignature(equipment);
-        const matched = dbBySignature.get(signature)?.find(item => !usedDbIds.has(item.id));
+        const rawMatches = rawKey ? dbByRawKey.get(rawKey) || [] : [];
+        const signatureMatches = (dbBySignature.get(signature) || [])
+          .filter(item => !rawKey || !getRawEquipmentKey(item));
+        const matched = [...rawMatches, ...signatureMatches].find(item => !usedDbIds.has(item.id));
         const updates: Partial<Equipment> = {
           slot: equipment.slot,
           name: equipment.name,
@@ -136,6 +164,7 @@ export function useAppData() {
           attributes: equipment.attributes,
           is_wearing: equipment.is_wearing,
           suit_type: equipment.suit_type,
+          rawEquipmentId: equipment.rawEquipmentId,
           retone: equipment.retone,
           legacyTs: equipment.legacyTs
         };
@@ -146,9 +175,19 @@ export function useAppData() {
         } else {
           await createEquipmentInDb(characterId, equipment);
         }
+
+        for (const duplicate of [...rawMatches, ...signatureMatches]) {
+          if (duplicate.id !== matched?.id) {
+            duplicateDbIds.add(duplicate.id);
+          }
+        }
       }
 
       for (const equipment of dbEquipments) {
+        if (duplicateDbIds.has(equipment.id)) {
+          await deleteEquipmentInDb(equipment.id);
+          continue;
+        }
         if (!usedDbIds.has(equipment.id) && equipment.is_wearing) {
           await updateEquipmentInDb(equipment.id, { is_wearing: false });
         }
@@ -165,9 +204,16 @@ export function useAppData() {
   ): Promise<Equipment[]> => {
     const ds = getDataSource();
     const existingEquipments = savedEquipments ?? await ds.getEquipments(characterId);
+    const existingByRawKey = new Map<string, Equipment[]>();
     const existingBySignature = new Map<string, Equipment[]>();
 
     for (const equipment of existingEquipments) {
+      const rawKey = getRawEquipmentKey(equipment);
+      if (rawKey) {
+        const rawQueue = existingByRawKey.get(rawKey) || [];
+        rawQueue.push(equipment);
+        existingByRawKey.set(rawKey, rawQueue);
+      }
       const signature = getEquipmentSignature(equipment);
       const queue = existingBySignature.get(signature) || [];
       queue.push(equipment);
@@ -175,9 +221,16 @@ export function useAppData() {
     }
 
     const matchedExistingIds = new Set<string>();
+    const duplicateExistingIds = new Set<string>();
+
     for (const importedEquipment of importedEquipments) {
+      const rawKey = getRawEquipmentKey(importedEquipment);
       const signature = getEquipmentSignature(importedEquipment);
-      const matched = existingBySignature.get(signature)?.find(item => !matchedExistingIds.has(item.id));
+      const rawMatches = rawKey ? existingByRawKey.get(rawKey) || [] : [];
+      const signatureMatches = (existingBySignature.get(signature) || [])
+        .filter(item => !rawKey || !getRawEquipmentKey(item));
+      const sameEquipments = [...rawMatches, ...signatureMatches];
+      const matched = sameEquipments.find(item => !matchedExistingIds.has(item.id));
       const updates: Partial<Equipment> = {
         slot: importedEquipment.slot,
         name: importedEquipment.name,
@@ -185,6 +238,7 @@ export function useAppData() {
         attributes: importedEquipment.attributes,
         is_wearing: true,
         suit_type: importedEquipment.suit_type,
+        rawEquipmentId: importedEquipment.rawEquipmentId,
         retone: importedEquipment.retone,
         legacyTs: importedEquipment.legacyTs
       };
@@ -200,14 +254,25 @@ export function useAppData() {
           attributes: importedEquipment.attributes,
           is_wearing: true,
           suit_type: importedEquipment.suit_type,
+          rawEquipmentId: importedEquipment.rawEquipmentId,
           retone: importedEquipment.retone,
           legacyTs: importedEquipment.legacyTs
         });
         matchedExistingIds.add(created.id);
       }
+
+      for (const equipment of sameEquipments) {
+        if (equipment.id !== matched?.id) {
+          duplicateExistingIds.add(equipment.id);
+        }
+      }
     }
 
     for (const equipment of existingEquipments) {
+      if (duplicateExistingIds.has(equipment.id)) {
+        await ds.deleteEquipment(equipment.id);
+        continue;
+      }
       if (!matchedExistingIds.has(equipment.id) && equipment.is_wearing) {
         await ds.updateEquipment(equipment.id, { is_wearing: false });
       }
