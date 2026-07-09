@@ -82,6 +82,8 @@ export interface Equipment {
   attributes: EquipmentAttribute[];
   is_wearing: boolean;
   suit_type?: SuitType;
+  retone?: RetoneInfo;
+  legacyTs?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -93,6 +95,30 @@ export interface EquipmentAttribute {
   is_main: boolean;
   rate?: number;
   quality?: number;
+  affixId?: number;
+}
+
+// 调律记录：某次调律把某位置/序号的词条替换为新词条
+export interface RetoneRecord {
+  slot: number;          // 调律位置/序号
+  affixIds: number[];    // 调律成的词条编号
+}
+
+// 调律回退记录：退回的词条及其数值
+export interface RetoneTakebackRecord {
+  affixId: number;       // 退回的词条编号
+  value: number;         // 退回的数值
+}
+
+// 装备调律信息（从游戏导入的装备才携带）
+export interface RetoneInfo {
+  retoned: number;                       // 调律次数
+  toneDeterminId?: number;               // 当前定调词条编号
+  toneExp?: number;                      // 调律经验
+  rawAffixId?: number;                   // 原始调律词条编号
+  affixHistory?: RetoneRecord[];         // 调律历史
+  takebackHistory?: RetoneTakebackRecord[]; // 调律回退历史
+  nextRetoneTs?: number;                 // 下次可调律时间戳
 }
 
 // 角色属性面板数据

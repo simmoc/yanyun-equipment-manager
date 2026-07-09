@@ -120,8 +120,8 @@ export interface GraduationCalcResult {
 
 const ELEMENT_FIELD_MAP: Record<string, { min: string; max: string }> = {
   '鸣金': { min: 'MIN_PRO_ATK_A', max: 'MAX_PRO_ATK_A' },
-  '裂石': { min: 'MIN_PRO_ATK_C', max: 'MAX_PRO_ATK_C' },
-  '牵丝': { min: 'MIN_PRO_ATK_B', max: 'MAX_PRO_ATK_B' },
+  '裂石': { min: 'MIN_PRO_ATK_B', max: 'MAX_PRO_ATK_B' },
+  '牵丝': { min: 'MIN_PRO_ATK_C', max: 'MAX_PRO_ATK_C' },
   '破竹': { min: 'MIN_PRO_ATK_E', max: 'MAX_PRO_ATK_E' },
   '无相': { min: 'MIN_ACTIVE_PRO_ATK', max: 'MAX_ACTIVE_PRO_ATK' },
 };

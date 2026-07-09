@@ -27,8 +27,8 @@ import { SCHOOL_REF_DATA } from '@/lib/dpsReferenceData';
 const PANEL_FIELD_MAP: Record<string, { min: string; max: string }> = {
   '外功': { min: 'MIN_W_ATK', max: 'MAX_W_ATK' },
   '鸣金': { min: 'MIN_PRO_ATK_A', max: 'MAX_PRO_ATK_A' },
-  '牵丝': { min: 'MIN_PRO_ATK_B', max: 'MAX_PRO_ATK_B' },
-  '裂石': { min: 'MIN_PRO_ATK_C', max: 'MAX_PRO_ATK_C' },
+  '裂石': { min: 'MIN_PRO_ATK_B', max: 'MAX_PRO_ATK_B' },
+  '牵丝': { min: 'MIN_PRO_ATK_C', max: 'MAX_PRO_ATK_C' },
   '破竹': { min: 'MIN_PRO_ATK_E', max: 'MAX_PRO_ATK_E' },
 };
 
@@ -327,7 +327,7 @@ export function DPSGraduationPanel({
     if (Object.keys(equipment).length === 0) return { error: '角色面板数据中未找到攻击属性' };
     const hitRates = extractHitRates(rolePanelData);
 
-    const equipList = equipments || [];
+    const equipList = (equipments || []).filter(equipment => equipment.is_wearing);
     const bossBonus = equipList.length > 0 ? extractBossBonus(equipList) : REF_BOSS_BONUS;
     const extractedSpecialBonuses = equipList.length > 0 ? extractDingyinBonuses(equipList) : {};
     const hasCategorizedDingyin = Object.keys(extractedSpecialBonuses).length > 0;

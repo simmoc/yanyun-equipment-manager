@@ -1,4 +1,4 @@
-import type { Equipment, EquipmentSlot, SuitType, EquipmentAttribute } from '@/types';
+import type { Equipment, EquipmentSlot, SuitType, EquipmentAttribute, RetoneInfo, RetoneRecord, RetoneTakebackRecord } from '@/types';
 import { EQUIPMENT_SLOTS } from '@/types';
 
 export const slotMap: Record<string, EquipmentSlot> = {
@@ -30,6 +30,51 @@ export const attrNameMap: Record<string, string> = {
   'CON': '根骨',
   'CRI': '身法'
 };
+
+// 解析游戏数据中 {"__": [...]} 形式的包装结构
+function unwrapUnderscore(obj: any): any[] {
+  if (obj && typeof obj === 'object' && '__' in obj) {
+    return obj['__'];
+  }
+  return [];
+}
+
+// 从装备 ex 字段中提取调律(retone)信息
+function extractRetoneInfo(ex: any): RetoneInfo | undefined {
+  const retoned: number = ex.retoned ?? 0;
+  const hasRetoneData =
+    retoned > 0 ||
+    ex.tone_determin ||
+    ex.retone_raw_affix_no ||
+    ex.retone_affix_history ||
+    ex.retone_takeback_history;
+
+  if (!hasRetoneData) return undefined;
+
+  const affixHistory: RetoneRecord[] = unwrapUnderscore(ex.retone_affix_history)
+    .filter((entry: any) => Array.isArray(entry) && entry.length >= 2)
+    .map((entry: any) => ({
+      slot: entry[0] as number,
+      affixIds: Array.isArray(entry[1]) ? entry[1] as number[] : [entry[1] as number]
+    }));
+
+  const takebackHistory: RetoneTakebackRecord[] = unwrapUnderscore(ex.retone_takeback_history)
+    .filter((entry: any) => Array.isArray(entry) && entry.length >= 2)
+    .map((entry: any) => ({
+      affixId: entry[0] as number,
+      value: entry[1] as number
+    }));
+
+  return {
+    retoned,
+    toneDeterminId: ex.tone_determin,
+    toneExp: ex.tone_exp,
+    rawAffixId: ex.retone_raw_affix_no,
+    affixHistory: affixHistory.length > 0 ? affixHistory : undefined,
+    takebackHistory: takebackHistory.length > 0 ? takebackHistory : undefined,
+    nextRetoneTs: ex.next_retone_ts
+  };
+}
 
 export function parseRawEquipments(roleInfo: any, configData?: any): any[] {
   const rawWearEquips = roleInfo['combat_plan.wear_equips'];
@@ -84,7 +129,9 @@ export function parseRawEquipments(roleInfo: any, configData?: any): any[] {
       suffix: suffixId,
       suffix_name: suffixName,
       base_attrs: ex.base_attrs || {},
-      base_affixes: []
+      base_affixes: [],
+      retone: extractRetoneInfo(ex),
+      legacyTs: ex.legacy_ts as number | undefined
     };
 
     for (const affix of baseAffixes) {
@@ -135,7 +182,8 @@ export function convertToEquipmentList(rawEquips: any[]): Equipment[] {
         value: affix.value as number,
         is_main: affix.is_max as boolean,
         rate: affix.rate as number,
-        quality: affix.quality as number
+        quality: affix.quality as number,
+        affixId: affix.id as number | undefined
       });
     }
 
@@ -152,6 +200,8 @@ export function convertToEquipmentList(rawEquips: any[]): Equipment[] {
       attributes,
       is_wearing: true,
       suit_type: suitType,
+      retone: equip.retone as RetoneInfo | undefined,
+      legacyTs: equip.legacyTs as number | undefined,
       created_at: new Date(now),
       updated_at: new Date(now)
     } as Equipment;

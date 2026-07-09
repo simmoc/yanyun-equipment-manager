@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
         attributes: e.attributes,
         is_wearing: e.is_wearing,
         suit_type: e.suit_type,
+        retone: e.retone,
+        legacyTs: e.legacy_ts,
         created_at: e.created_at,
         updated_at: e.updated_at
       }))
@@ -53,7 +55,9 @@ export async function POST(request: NextRequest) {
       level,
       attributes,
       is_wearing: isWearing,
-      suit_type: suitType
+      suit_type: suitType,
+      retone,
+      legacyTs
     } = body;
     
     if (!characterId || !slot || !name) {
@@ -70,7 +74,9 @@ export async function POST(request: NextRequest) {
       level ?? 0,
       attributes || [],
       isWearing ?? false,
-      suitType
+      suitType,
+      retone,
+      legacyTs
     );
     
     return NextResponse.json({
@@ -84,6 +90,8 @@ export async function POST(request: NextRequest) {
         attributes: equipment.attributes,
         is_wearing: equipment.is_wearing,
         suit_type: equipment.suit_type,
+        retone: equipment.retone,
+        legacyTs: equipment.legacy_ts,
         created_at: equipment.created_at,
         updated_at: equipment.updated_at
       }
@@ -110,7 +118,17 @@ export async function PUT(request: NextRequest) {
       );
     }
     
-    const equipment = await updateEquipment(equipmentId, updates);
+    const normalizedUpdates = updates
+      ? {
+        ...updates,
+        legacy_ts: updates.legacyTs ?? updates.legacy_ts
+      }
+      : updates;
+    if (normalizedUpdates && 'legacyTs' in normalizedUpdates) {
+      delete normalizedUpdates.legacyTs;
+    }
+
+    const equipment = await updateEquipment(equipmentId, normalizedUpdates);
     if (!equipment) {
       return NextResponse.json(
         { success: false, error: '装备不存在' },
@@ -129,6 +147,8 @@ export async function PUT(request: NextRequest) {
         attributes: equipment.attributes,
         is_wearing: equipment.is_wearing,
         suit_type: equipment.suit_type,
+        retone: equipment.retone,
+        legacyTs: equipment.legacy_ts,
         created_at: equipment.created_at,
         updated_at: equipment.updated_at
       }

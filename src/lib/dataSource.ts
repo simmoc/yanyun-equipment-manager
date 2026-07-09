@@ -61,7 +61,7 @@ class LocalDataSource implements DataSource {
   }
 
   async createEquipment(characterId: string, equipment: Omit<Equipment, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Equipment> {
-    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined);
+    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined, equipment.retone, equipment.legacyTs);
   }
 
   async updateEquipment(equipmentId: string, updates: Partial<Equipment>): Promise<void> {
@@ -162,7 +162,7 @@ class ApiDataSource implements DataSource {
   }
 
   async createEquipment(characterId: string, equipment: Omit<Equipment, 'id' | 'character_id' | 'created_at' | 'updated_at'>): Promise<Equipment> {
-    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined);
+    return localStore.createEquipmentLocal(characterId, equipment.slot, equipment.name, equipment.level, equipment.attributes, equipment.is_wearing, equipment.suit_type as string | undefined, equipment.retone, equipment.legacyTs);
   }
 
   async updateEquipment(equipmentId: string, updates: Partial<Equipment>): Promise<void> {

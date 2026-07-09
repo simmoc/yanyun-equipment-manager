@@ -42,6 +42,7 @@ export default function Home() {
     setSelectedPlan,
     equipments,
     setEquipments,
+    syncImportedEquipments,
     authCredentials,
     availableGameRoles,
     rolePanelData,
@@ -269,7 +270,8 @@ export default function Home() {
         if (panelResult.success && panelResult.data) authData.rolePanelData = panelResult.data;
         localStorage.setItem(authKey, JSON.stringify(authData));
 
-        setEquipments(equipmentsList);
+        const syncedEquipments = await syncImportedEquipments(selectedCharacter.id, equipmentsList);
+        setEquipments(syncedEquipments);
         if (panelResult.success && panelResult.data) {
           const panelData = panelResult.data;
           if (!panelData['combat_plan.xinfa_info'] && !panelData.xinfa_info) {
@@ -436,7 +438,9 @@ export default function Home() {
         equipments: equipmentsList
       }));
 
+      const syncedEquipments = await syncImportedEquipments(character.id, equipmentsList, []);
       setSelectedCharacter(character);
+      setEquipments(syncedEquipments);
       setSelectedGameRoleId('');
       await fetchCharacters();
       await fetchPlansAndEquipments();
@@ -483,6 +487,7 @@ export default function Home() {
     if (slotFilter !== '全部' && e.slot !== slotFilter) return false;
     return true;
   });
+  const wearingEquipments = equipments.filter(e => e.is_wearing);
   const xinfaNameMap = configData?.xinfa_data
     ? Object.fromEntries(Object.entries(configData.xinfa_data).map(([id, xinfa]) => [id, xinfa.name]))
     : null;
@@ -681,10 +686,10 @@ export default function Home() {
                           { label: '最大外功', field: 'MAX_W_ATK', value: rolePanelData.MAX_W_ATK },
                           { label: '最小鸣金', field: 'MIN_PRO_ATK_A', value: rolePanelData.MIN_PRO_ATK_A },
                           { label: '最大鸣金', field: 'MAX_PRO_ATK_A', value: rolePanelData.MAX_PRO_ATK_A },
-                          { label: '最小牵丝', field: 'MIN_PRO_ATK_B', value: rolePanelData.MIN_PRO_ATK_B },
-                          { label: '最大牵丝', field: 'MAX_PRO_ATK_B', value: rolePanelData.MAX_PRO_ATK_B },
-                          { label: '最小裂石', field: 'MIN_PRO_ATK_C', value: rolePanelData.MIN_PRO_ATK_C },
-                          { label: '最大裂石', field: 'MAX_PRO_ATK_C', value: rolePanelData.MAX_PRO_ATK_C },
+                          { label: '最小裂石', field: 'MIN_PRO_ATK_B', value: rolePanelData.MIN_PRO_ATK_B },
+                          { label: '最大裂石', field: 'MAX_PRO_ATK_B', value: rolePanelData.MAX_PRO_ATK_B },
+                          { label: '最小牵丝', field: 'MIN_PRO_ATK_C', value: rolePanelData.MIN_PRO_ATK_C },
+                          { label: '最大牵丝', field: 'MAX_PRO_ATK_C', value: rolePanelData.MAX_PRO_ATK_C },
                           { label: '最小破竹', field: 'MIN_PRO_ATK_E', value: rolePanelData.MIN_PRO_ATK_E },
                           { label: '最大破竹', field: 'MAX_PRO_ATK_E', value: rolePanelData.MAX_PRO_ATK_E },
                           { label: '最小无相', field: 'MIN_ACTIVE_PRO_ATK', value: rolePanelData.MIN_ACTIVE_PRO_ATK },
@@ -723,7 +728,7 @@ export default function Home() {
               <DPSGraduationPanel
                 rolePanelData={rolePanelData}
                 selectedPlan={selectedPlan}
-                equipments={equipments}
+                equipments={wearingEquipments}
               />
             </div>
           </div>
@@ -787,7 +792,7 @@ export default function Home() {
         <TuningAssistantModal
           isOpen={showTuningAssistant}
           onClose={() => setShowTuningAssistant(false)}
-          equipments={equipments}
+          equipments={wearingEquipments}
           plan={selectedPlan}
           rolePanelData={rolePanelData}
           xinfaNameMap={xinfaNameMap}

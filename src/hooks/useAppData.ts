@@ -37,6 +37,187 @@ export function useAppData() {
     }
   };
 
+  const normalizeEquipmentAttributes = (equipment: Equipment) => {
+    return (equipment.attributes || [])
+      .map(attr => ({
+        name: attr.name,
+        value: attr.value,
+        is_main: !!attr.is_main,
+        rate: attr.rate ?? null,
+        quality: attr.quality ?? null,
+        affixId: attr.affixId ?? null
+      }))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  };
+
+  const getEquipmentSignature = (equipment: Equipment) => {
+    return JSON.stringify({
+      slot: equipment.slot,
+      name: equipment.name,
+      level: equipment.level || 0,
+      suit_type: equipment.suit_type || null,
+      attributes: normalizeEquipmentAttributes(equipment)
+    });
+  };
+
+  const mergeImportedWithHistory = (importedEquipments: Equipment[], savedEquipments: Equipment[]) => {
+    const importedSignatures = new Set(importedEquipments.map(getEquipmentSignature));
+    const history = savedEquipments
+      .filter(equipment => !importedSignatures.has(getEquipmentSignature(equipment)))
+      .map(equipment => ({ ...equipment, is_wearing: false }));
+
+    return [
+      ...importedEquipments.map(equipment => ({ ...equipment, is_wearing: true })),
+      ...history
+    ];
+  };
+
+  const updateEquipmentInDb = async (equipmentId: string, updates: Partial<Equipment>) => {
+    const response = await fetch('/api/equipments', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ equipmentId, updates })
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'Failed to update equipment in database');
+  };
+
+  const createEquipmentInDb = async (characterId: string, equipment: Equipment) => {
+    const response = await fetch('/api/equipments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        characterId,
+        slot: equipment.slot,
+        name: equipment.name,
+        level: equipment.level,
+        attributes: equipment.attributes,
+        is_wearing: equipment.is_wearing,
+        suit_type: equipment.suit_type,
+        retone: equipment.retone,
+        legacyTs: equipment.legacyTs
+      })
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'Failed to create equipment in database');
+  };
+
+  const syncEquipmentsToDatabase = async (characterId: string, localEquipments: Equipment[]) => {
+    if (isLocal) return;
+
+    try {
+      const response = await fetch(`/api/equipments?characterId=${encodeURIComponent(characterId)}`);
+      const data = await response.json();
+      if (!data.success || !Array.isArray(data.equipments)) return;
+
+      const dbEquipments = data.equipments.map((equipment: any) => ({
+        ...equipment,
+        legacyTs: equipment.legacyTs ?? equipment.legacy_ts,
+        created_at: new Date(equipment.created_at),
+        updated_at: new Date(equipment.updated_at)
+      })) as Equipment[];
+
+      const dbBySignature = new Map<string, Equipment[]>();
+      for (const equipment of dbEquipments) {
+        const signature = getEquipmentSignature(equipment);
+        const queue = dbBySignature.get(signature) || [];
+        queue.push(equipment);
+        dbBySignature.set(signature, queue);
+      }
+
+      const usedDbIds = new Set<string>();
+      for (const equipment of localEquipments) {
+        const signature = getEquipmentSignature(equipment);
+        const matched = dbBySignature.get(signature)?.find(item => !usedDbIds.has(item.id));
+        const updates: Partial<Equipment> = {
+          slot: equipment.slot,
+          name: equipment.name,
+          level: equipment.level,
+          attributes: equipment.attributes,
+          is_wearing: equipment.is_wearing,
+          suit_type: equipment.suit_type,
+          retone: equipment.retone,
+          legacyTs: equipment.legacyTs
+        };
+
+        if (matched) {
+          usedDbIds.add(matched.id);
+          await updateEquipmentInDb(matched.id, updates);
+        } else {
+          await createEquipmentInDb(characterId, equipment);
+        }
+      }
+
+      for (const equipment of dbEquipments) {
+        if (!usedDbIds.has(equipment.id) && equipment.is_wearing) {
+          await updateEquipmentInDb(equipment.id, { is_wearing: false });
+        }
+      }
+    } catch (error) {
+      console.error('同步装备到数据库失败:', error);
+    }
+  };
+
+  const syncImportedEquipments = useCallback(async (
+    characterId: string,
+    importedEquipments: Equipment[],
+    savedEquipments?: Equipment[]
+  ): Promise<Equipment[]> => {
+    const ds = getDataSource();
+    const existingEquipments = savedEquipments ?? await ds.getEquipments(characterId);
+    const existingBySignature = new Map<string, Equipment[]>();
+
+    for (const equipment of existingEquipments) {
+      const signature = getEquipmentSignature(equipment);
+      const queue = existingBySignature.get(signature) || [];
+      queue.push(equipment);
+      existingBySignature.set(signature, queue);
+    }
+
+    const matchedExistingIds = new Set<string>();
+    for (const importedEquipment of importedEquipments) {
+      const signature = getEquipmentSignature(importedEquipment);
+      const matched = existingBySignature.get(signature)?.find(item => !matchedExistingIds.has(item.id));
+      const updates: Partial<Equipment> = {
+        slot: importedEquipment.slot,
+        name: importedEquipment.name,
+        level: importedEquipment.level,
+        attributes: importedEquipment.attributes,
+        is_wearing: true,
+        suit_type: importedEquipment.suit_type,
+        retone: importedEquipment.retone,
+        legacyTs: importedEquipment.legacyTs
+      };
+
+      if (matched) {
+        matchedExistingIds.add(matched.id);
+        await ds.updateEquipment(matched.id, updates);
+      } else {
+        const created = await ds.createEquipment(characterId, {
+          slot: importedEquipment.slot,
+          name: importedEquipment.name,
+          level: importedEquipment.level,
+          attributes: importedEquipment.attributes,
+          is_wearing: true,
+          suit_type: importedEquipment.suit_type,
+          retone: importedEquipment.retone,
+          legacyTs: importedEquipment.legacyTs
+        });
+        matchedExistingIds.add(created.id);
+      }
+    }
+
+    for (const equipment of existingEquipments) {
+      if (!matchedExistingIds.has(equipment.id) && equipment.is_wearing) {
+        await ds.updateEquipment(equipment.id, { is_wearing: false });
+      }
+    }
+
+    const syncedEquipments = await ds.getEquipments(characterId);
+    await syncEquipmentsToDatabase(characterId, syncedEquipments);
+    return syncedEquipments;
+  }, [isLocal]);
+
   const fetchCharacters = async (): Promise<Character[]> => {
     try {
       const ds = getDataSource();
@@ -91,8 +272,12 @@ export function useAppData() {
     const savedEquipments = await loadSavedEquipments();
     const hasReadyCache = cached && !hasUnresolvedEquipmentText(cached);
     if (hasReadyCache) {
-      setEquipments([...cached, ...savedEquipments]);
-      if (!authCredentials || !server) return;
+      setEquipments(mergeImportedWithHistory(cached, savedEquipments));
+      if (!authCredentials || !server) {
+        const synced = await syncImportedEquipments(selectedCharacter.id, cached, savedEquipments);
+        setEquipments(synced);
+        return;
+      }
     }
 
     // 有登录凭证时从API重新获取角色信息
@@ -125,7 +310,8 @@ export function useAppData() {
             localStorage.removeItem(`auth_${selectedCharacter.id}`);
           }
 
-          setEquipments([...equipmentsList, ...savedEquipments]);
+          const synced = await syncImportedEquipments(selectedCharacter.id, equipmentsList, savedEquipments);
+          setEquipments(synced);
           return;
         }
       } catch (error) {
@@ -155,7 +341,8 @@ export function useAppData() {
           const equipmentsList = convertToEquipmentList(rawEquips);
           authData.equipments = equipmentsList;
           localStorage.setItem(`auth_${roleId}`, JSON.stringify(authData));
-          setEquipments([...equipmentsList, ...savedEquipments]);
+          const synced = await syncImportedEquipments(selectedCharacter.id, equipmentsList, savedEquipments);
+          setEquipments(synced);
           return;
         }
       } catch (error) {
@@ -164,13 +351,14 @@ export function useAppData() {
     }
 
     if (cached) {
-      setEquipments([...cached, ...savedEquipments]);
+      const synced = await syncImportedEquipments(selectedCharacter.id, cached, savedEquipments);
+      setEquipments(synced);
       return;
     }
 
     // 最后尝试从本地存储读取
     setEquipments(savedEquipments);
-  }, [selectedCharacter, authCredentials, selectedPlan]);
+  }, [selectedCharacter, authCredentials, selectedPlan, syncImportedEquipments]);
 
   const saveAuthCredentials = (cookies: any, loginToken: string, roles: GameRole[]) => {
     const credentials: AuthCredentials = {
@@ -358,6 +546,7 @@ export function useAppData() {
     setSelectedPlan,
     equipments,
     setEquipments,
+    syncImportedEquipments,
     authCredentials,
     availableGameRoles,
     rolePanelData,

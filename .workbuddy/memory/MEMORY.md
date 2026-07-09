@@ -47,6 +47,7 @@ total = sum(所有非零元素)
 - `类型`字段 (武器类型: 伞/剑/枪) ≠ Col30 (技能分类: 回旋伞/蓄力技/流血)
 - 鸣金流派列映射偏移: Col11=真气比列=K, Col12=期望=L (标准流派 Col11=期望=K)
 - Excel "总伤" 包含结算(subtotal)行，应使用纯技能行计算参考DPS
+- 装备 `ex` 中 legacy 字段含义（传承/继承系统）：`legacy_origin_no`=传承链最初来源装备编号，`legacy_last_no`=上一次传承来源装备编号，`legacy_ts`=传承时间戳。例：110级吴钩霜甲(1101962) 由 105级雁南飞甲(1101862) 传承而来。传承会换装备编号和名称（同部位升阶），词条/数据继承转移。
 
 ## 前端集成 (2026-06-22)
 
@@ -65,3 +66,25 @@ DPS 毕业率计算器已集成到 Next.js 前端项目：
 - RolePanelData 的 MIN_W_ATK/MAX_W_ATK → 外功, MIN_PRO_ATK_A/B/C/E → 鸣金/牵丝/裂石/破竹
 - 穿透/增伤：使用参考数据默认值
 - FlowType → schoolKey: 鸣金虹→鸣金虹_105, etc. (破竹风/鸢/牵丝玉/翊 → null, 无参考数据)
+
+## 装备调律(retone)信息展示 (2026-07-09)
+
+游戏导入装备的 `ex` 字段含调律(retone，玩家俗称"转率")数据，已解析并在装备卡片展示。
+
+### 调律字段（`src/lib/equipmentParser.ts` 的 `extractRetoneInfo`）
+- `retoned`: 调律次数
+- `tone_determin`: 当前定调词条编号
+- `tone_exp`: 调律经验
+- `retone_raw_affix_no`: 原始调律词条编号
+- `retone_affix_history`: `{"__":[[槽位,[目标词条编号...]]...]}` — 调律历史
+- `retone_takeback_history`: `{"__":[[词条编号,数值]...]}` — 回退历史
+- `next_retone_ts`: 下次可调律时间戳（秒）
+
+### 类型与展示
+- `src/types/index.ts` 新增 `RetoneInfo`/`RetoneRecord`/`RetoneTakebackRecord`；`Equipment.retone?: RetoneInfo`
+- `EquipmentCard` 用 `getAffixName(id)`/`formatValueById(id,value)` 按编号映射名称与格式化（避免同名词条歧义），词条区块下方展示调律区块
+- 游戏数据中 `{"__":[...]}` 包装结构用 `unwrapUnderscore()` 统一解析
+
+### 注意
+- 词缀配置全库带"率"字的只有：会心率/会意率/精准率 三种，无"转率"词条；"转率"是玩家对调律系统的俗称
+- `next build` 在本机会被 WorkBuddy safe-delete 拦截 `.next` 缓存清理，需先 `rm -rf .next`

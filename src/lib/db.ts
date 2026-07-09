@@ -193,9 +193,30 @@ export async function initDatabase() {
       attributes JSONB DEFAULT '[]',
       is_wearing BOOLEAN DEFAULT FALSE,
       suit_type VARCHAR(50),
+      retone JSONB,
+      legacy_ts BIGINT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`;
+
+    await db`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'equipments' AND column_name = 'retone'
+        ) THEN
+          ALTER TABLE equipments ADD COLUMN retone JSONB;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'equipments' AND column_name = 'legacy_ts'
+        ) THEN
+          ALTER TABLE equipments ADD COLUMN legacy_ts BIGINT;
+        END IF;
+      END;
+    $$;
+    `;
 
     await db`CREATE TABLE IF NOT EXISTS shared_characters (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -290,11 +311,11 @@ export async function getEquipmentsByCharacterId(characterId: string) {
   return asRows(result);
 }
 
-export async function createEquipment(characterId: string, slot: string, name: string, level: number, attributes: object[], isWearing: boolean, suitType?: string) {
+export async function createEquipment(characterId: string, slot: string, name: string, level: number, attributes: object[], isWearing: boolean, suitType?: string, retone?: object, legacyTs?: number) {
   const db = getSql();
   const result = await db`
-    INSERT INTO equipments (character_id, slot, name, level, attributes, is_wearing, suit_type)
-    VALUES (${characterId}, ${slot}, ${name}, ${level}, ${JSON.stringify(attributes)}, ${isWearing}, ${suitType || null})
+    INSERT INTO equipments (character_id, slot, name, level, attributes, is_wearing, suit_type, retone, legacy_ts)
+    VALUES (${characterId}, ${slot}, ${name}, ${level}, ${JSON.stringify(attributes)}, ${isWearing}, ${suitType || null}, ${retone ? JSON.stringify(retone) : null}, ${legacyTs || null})
     RETURNING *
   `;
   return asRow(result);
@@ -305,8 +326,8 @@ export async function updateEquipment(equipmentId: string, updates: Record<strin
     'equipments',
     equipmentId,
     updates,
-    ['slot', 'name', 'level', 'attributes', 'is_wearing', 'suit_type'],
-    ['attributes']
+    ['slot', 'name', 'level', 'attributes', 'is_wearing', 'suit_type', 'retone', 'legacy_ts'],
+    ['attributes', 'retone']
   );
 }
 

@@ -709,7 +709,7 @@ function analyzeEquipments(
   const attributeStats: Record<string, { count: number; totalValue: number }> = {};
   const equipmentAnalysis: EquipmentAnalysis[] = [];
 
-  const filteredEquipments = dbEquipments.filter(e => e.slot !== '弓' && e.slot !== '射决');
+  const filteredEquipments = dbEquipments.filter(e => e.is_wearing && e.slot !== '弓' && e.slot !== '射决');
 
   filteredEquipments.forEach(equip => {
     const affixes: EquipmentAnalysis['affixes'] = [];
